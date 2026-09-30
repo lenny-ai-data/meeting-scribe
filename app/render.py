@@ -117,7 +117,7 @@ def speaker_names(job: dict, speakers: list[dict]) -> dict[str, str]:
     return {sp["id"]: sp["name"] or default_label(sp["id"], job["language"]) for sp in speakers}
 
 
-def _now_local(tz: str) -> str:
+def now_local(tz: str) -> str:
     return datetime.now(timezone.utc).astimezone(ZoneInfo(tz)).isoformat(timespec="seconds")
 
 
@@ -143,7 +143,7 @@ def render_transcript(job: dict, segments: list[dict], speakers: list[dict], dia
         "source_file": job.get("source_name"),
         "source_url": job.get("source_url"),
         "job_id": job["id"],
-        "generated_at": _now_local(tz),
+        "generated_at": now_local(tz),
     }
     lines = [frontmatter(header), f"# {display_title(job)}", ""]
     for turn in turns:
