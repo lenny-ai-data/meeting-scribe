@@ -1,0 +1,11 @@
+# Données et caches (montés dans le conteneur)
+/data/
+/models/
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
