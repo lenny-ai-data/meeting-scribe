@@ -1,10 +1,10 @@
 """Post-traitement de la diarisation : libellés stables S1, S2… et temps de parole."""
 
 import copy
-import json
 from pathlib import Path
 
 from . import db
+from .jsonio import write_json
 
 
 def build_mapping(diarization: list[dict], segments: list[dict]) -> dict[str, str]:
@@ -58,10 +58,8 @@ def finalize(job: dict, job_dir: Path, diarization: list[dict], result: dict) ->
         for sp, iv in speaker_intervals(diarization).items()
     ]
     speakers.sort(key=lambda sp: int(sp["id"][1:]))
-    (job_dir / "diarization.json").write_text(json.dumps(diarization), encoding="utf-8")
-    (job_dir / "result.json").write_text(
-        json.dumps({"segments": segments, "language": job["language"]}, ensure_ascii=False), encoding="utf-8"
-    )
+    write_json(job_dir / "diarization.json", diarization)
+    write_json(job_dir / "result.json", {"segments": segments, "language": job["language"]})
     db.replace_speakers(job["id"], speakers)
 
 
