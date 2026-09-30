@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from . import db
+from . import __version__, db
 from .api import jobs, speakers, system
 from .auth import require_token
 from .config import get_settings
@@ -32,7 +32,7 @@ def create_app() -> FastAPI:
         title="Meeting Scribe",
         description="Transcription de réunions (WhisperX + pyannote), identification des intervenants, "
                     "transcripts Markdown et comptes rendus par LLM.",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
 

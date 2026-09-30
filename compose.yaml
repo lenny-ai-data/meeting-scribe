@@ -1,0 +1,23 @@
+services:
+  meeting-scribe:
+    build: .
+    image: meeting-scribe:latest
+    container_name: meeting-scribe
+    restart: unless-stopped
+    ports:
+      - "8090:8000"
+    env_file:
+      - path: .env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # pour joindre Ollama sur l'hôte
+    volumes:
+      - ./data:/data       # base SQLite, fichiers des jobs, config (cookies YouTube)
+      - ./models:/models   # cache des modèles (Whisper, alignement, pyannote)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

@@ -6,7 +6,7 @@ from typing import Annotated
 import httpx
 from fastapi import APIRouter, Depends
 
-from .. import db
+from .. import __version__, db
 from ..config import DEVICES, LANGUAGES, WHISPER_MODELS, get_settings
 from ..worker.queue import Worker
 from .common import get_worker
@@ -64,7 +64,7 @@ async def system(worker: Annotated[Worker, Depends(get_worker)]):
     gpu, ollama = await asyncio.gather(_gpu(), _ollama())
     current = worker.current
     return {
-        "version": _package_version("meeting-scribe"),
+        "version": __version__,
         "gpu": gpu,
         "ollama": ollama,
         "llm_api": {"configured": settings.llm_api_configured, "base_url": settings.llm_api_base_url or None,
