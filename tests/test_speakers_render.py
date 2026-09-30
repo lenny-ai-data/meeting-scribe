@@ -49,6 +49,37 @@ def test_units_split_on_speaker_change_and_smooth_isolated_word():
     ]
 
 
+def test_isolated_question_mark_stays_with_previous_word():
+    # L'alignement donne au « ? » l'horodatage (et donc l'intervenant) du mot suivant
+    seg = _seg(0, 4, [("vous", 0, 0.3, "S1"), ("l'entendez", 0.3, 1.0, "S1"), ("?", 1.2, 1.25, "S2"),
+                      ("Non,", 1.2, 1.5, "S2"), ("c'est", 1.5, 1.7, "S2"), ("faux.", 1.7, 2.0, "S2")])
+    assert [(u.speaker, u.text) for u in render.build_units([seg])] == [
+        ("S1", "vous l'entendez ?"), ("S2", "Non, c'est faux."),
+    ]
+
+
+def test_speaker_change_snaps_to_sentence_end():
+    # Début de phrase resté au précédent intervenant : « … Mais Julien | Audoul, certains … »
+    seg1 = _seg(0, 5, [("Ils", 0, 0.5, "S2"), ("empêchent", 0.5, 1, "S2"), ("ça.", 1, 1.5, "S2"),
+                       ("Mais", 1.6, 1.8, "S2"), ("Julien", 1.8, 2.2, "S2")])
+    seg2 = _seg(2.2, 6, [("Audoul,", 2.2, 2.6, "S1"), ("certains", 2.6, 3, "S1"), ("disent.", 3, 3.5, "S1")])
+    assert [(u.speaker, u.text) for u in render.build_units([seg1, seg2])] == [
+        ("S2", "Ils empêchent ça."), ("S1", "Mais Julien"), ("S1", "Audoul, certains disent."),
+    ]
+    # Fin de phrase partie chez le suivant : « … devront | répondre. Justement … »
+    seg = _seg(0, 5, [("leurs", 0, 0.3, "S2"), ("auteurs", 0.3, 0.6, "S2"), ("devront", 0.6, 1, "S2"),
+                      ("répondre.", 1, 1.4, "S4"), ("Justement,", 1.5, 2, "S4"), ("monsieur.", 2, 2.4, "S4")])
+    assert [(u.speaker, u.text) for u in render.build_units([seg])] == [
+        ("S2", "leurs auteurs devront répondre."), ("S4", "Justement, monsieur."),
+    ]
+
+
+def test_no_snap_across_a_real_pause():
+    seg = _seg(0, 9, [("Alors", 0, 0.5, "S1"), ("je", 0.5, 0.7, "S1"), ("pense", 0.7, 1, "S1"),
+                      ("Oui.", 4, 4.5, "S2")])
+    assert [(u.speaker, u.text) for u in render.build_units([seg])] == [("S1", "Alors je pense"), ("S2", "Oui.")]
+
+
 def test_units_words_without_timing_inherit():
     seg = {"start": 0, "end": 3, "speaker": "S1", "text": "Il y a 25 personnes",
            "words": [{"word": "Il", "start": 0, "end": 0.2, "speaker": "S1"}, {"word": "y"}, {"word": "a"},
