@@ -1,3 +1,5 @@
+<p align="center"><img src="web/logo-mark.svg" width="72" alt=""></p>
+
 # Meeting Scribe
 
 Transcription de réunions en français (ou en anglais), identification des intervenants, transcript Markdown et comptes rendus générés par un LLM. Le service est auto-hébergé et remplace Whishper.
