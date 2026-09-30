@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -17,6 +18,9 @@ from .errors import ScribeError
 log = logging.getLogger("youtube")
 
 PROGRESS = re.compile(r"\[download\]\s+(\d+(?:\.\d+)?)%")
+# Refus passagers de YouTube (URL de flux expirée, limitation) : une nouvelle tentative suffit souvent
+TRANSIENT = re.compile(r"HTTP Error (403|429|5\d\d)|timed out|Connection reset|Remote end closed", re.I)
+RETRY_DELAYS = (5, 15)
 
 
 class DownloadError(ScribeError):
@@ -36,6 +40,30 @@ def _meeting_date(info: dict) -> str | None:
 def download(url: str, job_dir: Path, cookies: Path | None,
              on_progress: Callable[[float], None]) -> tuple[Path, dict]:
     """Télécharge la meilleure piste audio dans job_dir/source.<ext>. Renvoie le chemin et des métadonnées."""
+    for attempt, delay in enumerate((*RETRY_DELAYS, None), 1):
+        try:
+            path = _run_ytdlp(url, job_dir, cookies, on_progress)
+            break
+        except DownloadError as exc:
+            if delay is None or not TRANSIENT.search(str(exc)):
+                raise
+            log.warning("Tentative %d échouée (%s), nouvel essai dans %d s", attempt, exc, delay)
+            for partial in job_dir.glob("source.*"):
+                partial.unlink(missing_ok=True)
+            time.sleep(delay)
+
+    info_path = job_dir / "source.info.json"
+    info = json.loads(info_path.read_text(encoding="utf-8")) if info_path.exists() else {}
+    title = info.get("title")
+    return path, {
+        "title": title,
+        "source_name": f"{title}{path.suffix}" if title else path.name,
+        "date": _meeting_date(info),
+        "webpage_url": info.get("webpage_url"),
+    }
+
+
+def _run_ytdlp(url: str, job_dir: Path, cookies: Path | None, on_progress: Callable[[float], None]) -> Path:
     cmd = ["yt-dlp", "--no-playlist", "--newline", "--no-colors", "-f", "bestaudio/best",
            "--write-info-json", "-o", str(job_dir / "source.%(ext)s"),
            "--print", "after_move:filepath", url]
@@ -64,13 +92,4 @@ def download(url: str, job_dir: Path, cookies: Path | None,
             hint = (" YouTube demande une connexion : exportez les cookies d'un navigateur connecté dans "
                     "data/config/youtube-cookies.txt (format Netscape).")
         raise DownloadError(f"Téléchargement impossible (yt-dlp) : {message}.{hint}")
-
-    info_path = job_dir / "source.info.json"
-    info = json.loads(info_path.read_text(encoding="utf-8")) if info_path.exists() else {}
-    title = info.get("title")
-    return path, {
-        "title": title,
-        "source_name": f"{title}{path.suffix}" if title else path.name,
-        "date": _meeting_date(info),
-        "webpage_url": info.get("webpage_url"),
-    }
+    return path
