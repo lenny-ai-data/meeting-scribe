@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, db
+from . import __version__, callbacks, db
 from .api import jobs, prompts, speakers, summaries, system
 from .auth import require_token
 from .config import get_settings
@@ -20,6 +20,7 @@ async def lifespan(app: FastAPI):
     db.init_db()
     worker = Worker()
     worker.handlers["summarize"] = run_summary_task
+    worker.on_task_done.append(callbacks.on_task_done)
     app.state.worker = worker
     loop_task = asyncio.create_task(worker.run_forever())
     try:

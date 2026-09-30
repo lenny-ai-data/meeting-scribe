@@ -55,6 +55,7 @@ def speaker_sample(job_id: str, speaker_id: str, n: int):
                         "sont fusionnés dans le transcript. Une valeur vide ou null rétablit le libellé par défaut.")
 async def rename_speakers(
     job_id: str,
+    worker: Annotated[Worker, Depends(get_worker)],
     names: Annotated[dict[str, str | None], Body(examples=[{"S1": "Alice", "S2": "Bob"}])],
 ):
     job = job_or_404(job_id)
@@ -64,6 +65,9 @@ async def rename_speakers(
         raise HTTPException(422, f"Intervenant(s) inconnu(s) : {', '.join(sorted(unknown))}")
     cleaned = {sid: (" ".join(name.split()) or None) if name else None for sid, name in names.items()}
     db.set_speaker_names(job_id, cleaned)
+    from .. import callbacks
+
+    worker.spawn(callbacks.send_job_event("job.speakers_updated", job_id))
     return speakers_out(job)
 
 
