@@ -114,7 +114,7 @@ def diarize_and_finish(job: dict, engine: Engine, audio, aligned: dict, rep: Rep
     rep.stage("diarizing")
     diarization = engine.diarize(audio, job["num_speakers"], job["min_speakers"], job["max_speakers"], rep.progress)
     result = engine.assign_speakers(diarization, aligned)
-    finalize(job, job_dir, diarization, result)
+    finalize(db.get_job(job["id"]), job_dir, diarization, result)
     db.update_job(job["id"], status="completed", progress=100, error=None, finished_at=db.now_iso())
 
 
