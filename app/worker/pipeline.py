@@ -5,17 +5,16 @@ sa progression et son résultat en base ; le worker parent ne gère que l'échec
 (code de sortie non nul) et l'annulation.
 """
 
-import json
 import logging
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .. import db, media
 from ..config import get_settings
 from ..errors import ScribeError
+from ..jsonio import read_json, write_json
 from .engine import Engine, make_engine
 
 log = logging.getLogger("pipeline")
@@ -44,16 +43,6 @@ class Reporter:
         if value > self._last_value and (now - self._last_write >= 1.0 or value >= 100.0):
             db.update_job(self.job_id, progress=value)
             self._last_write, self._last_value = now, value
-
-
-def write_json(path: Path, data) -> None:
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    tmp.replace(path)
-
-
-def read_json(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def run_transcribe(job: dict, task: dict, rep: Reporter) -> None:
