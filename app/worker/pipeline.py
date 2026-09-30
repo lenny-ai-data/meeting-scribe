@@ -59,7 +59,10 @@ def run_transcribe(job: dict, task: dict, rep: Reporter) -> None:
         if not job["title"] and info.get("title"):
             fields["title"] = info["title"]
         if not job["meeting_date"] and info.get("date"):
-            fields["meeting_date"] = info["date"]
+            date = info["date"]
+            if "T" in date:
+                date = datetime.fromisoformat(date).astimezone(ZoneInfo(settings.tz)).isoformat(timespec="seconds")
+            fields["meeting_date"] = date
         db.update_job(job["id"], **fields)
         job = db.get_job(job["id"])
 
