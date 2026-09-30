@@ -48,6 +48,9 @@ class Worker:
             db.finish_task(task["id"], "cancelled")
             if task["summary_id"]:
                 db.update_summary(task["summary_id"], status="cancelled", finished_at=db.now_iso())
+            elif task["kind"] == "rediarize":
+                # Le résultat précédent reste valable
+                db.update_job(job_id, status="completed", progress=100)
             cancelled = True
         if self._current and self._current["job_id"] == job_id:
             await self._cancel_current()

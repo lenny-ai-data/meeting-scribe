@@ -11,18 +11,11 @@ from fastapi.responses import FileResponse
 
 from .. import db
 from ..config import DEVICES, LANGUAGES, WHISPER_MODELS, get_settings
+from ..render import display_title
 from ..worker.queue import Worker
 from .common import get_worker, job_or_404, link
 
 router = APIRouter(tags=["jobs"])
-
-
-def display_title(job: dict) -> str:
-    if job["title"]:
-        return job["title"]
-    if job["source_name"]:
-        return PurePath(job["source_name"]).stem
-    return job["source_url"] or job["id"]
 
 
 def job_out(job: dict, detail: bool = False) -> dict:
