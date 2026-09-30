@@ -14,6 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/opt/venv/bin:$PATH \
     HF_HOME=/models/huggingface \
     TORCH_HOME=/models/torch \
+    MPLCONFIGDIR=/models/matplotlib \
     DATA_DIR=/data \
     TZ=Europe/Paris \
     NVIDIA_VISIBLE_DEVICES=all \
@@ -22,7 +23,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3.12 python3.12-venv ffmpeg ca-certificates curl tzdata \
+    # libpython3.12 : chargée par torchcodec (pyannote)
+ && apt-get install -y --no-install-recommends python3.12 python3.12-venv libpython3.12t64 ffmpeg ca-certificates curl tzdata \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=uv /uv /uvx /usr/local/bin/
