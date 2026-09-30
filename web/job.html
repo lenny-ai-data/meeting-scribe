@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Réunion · Meeting Scribe</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/purify.min.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const TS_PATTERN = /\[(\d{2}):(\d{2}):(\d{2})\]/g;
+
+    function jobPage() {
+      return {
+        id: new URLSearchParams(location.search).get("id"),
+        job: null,
+        error: "",
+        sys: "",
+        names: {},
+        people: [],
+        savingNames: false,
+        rediarizeCount: "",
+        playing: null,
+        sampleAudio: null,
+        tab: "transcript",
+        transcript: "",
+        transcriptHeader: "",
+        transcriptHtml: "",
+        editing: false,
+        edit: { title: "", meeting_date: "" },
+        // Comptes rendus
+        prompts: [],
+        ollama: { models: [], default_model: "" },
+        llmApi: { configured: false, model: null },
+        summaries: [],
+        selectedSummary: null,
+        summaryForm: { prompt_id: "", meeting_prompt: "", provider: "ollama", model: "", think: false },
+        summaryError: "",
+        timer: null,
+        summaryTimer: null,
+
+        get steps() {
+          const steps = PIPELINE_STEPS.filter((s) => s !== "downloading" || this.job?.source_url);
+          const current = steps.indexOf(this.job?.status);
+          return steps.map((s, i) => ({ name: s, label: statusLabel(s),
+            state: this.job?.status === "completed" || i < current ? "done" : i === current ? "current" : "" }));
+        },
+        get active() { return this.job && isActive(this.job.status); },
+        get completed() { return this.job?.status === "completed"; },
+        get namesChanged() {
+          return (this.job?.speakers || []).some((sp) => (sp.name || "") !== (this.names[sp.id] || "").trim());
+        },
+        get currentSummary() { return this.summaries.find((s) => s.id === this.selectedSummary) || null; },
+        get summaryHtml() { return this.currentSummary?.content ? renderMarkdown(this.currentSummary.content) : ""; },
+        get summariesActive() { return this.summaries.some((s) => isActive(s.status)); },
+
+        async init() {
+          if (!this.id) { this.error = "Identifiant de job manquant."; return; }
+          this.sampleAudio = new Audio();
+          this.sampleAudio.addEventListener("ended", () => (this.playing = null));
+          await this.load();
+          this.loadSummaryOptions();
+        },
+
+        async load() {
+          clearTimeout(this.timer);
+          const wasCompleted = this.completed;
+          try {
+            this.job = await api(`jobs/${this.id}`);
+            document.title = `${this.job.display_title} · Meeting Scribe`;
+            this.sys = await loadSystemBadge();
+          } catch (e) {
+            this.error = e.message;
+            return;
+          }
+          if (this.completed && (!wasCompleted || !this.transcript)) {
+            this.names = Object.fromEntries(this.job.speakers.map((sp) => [sp.id, sp.name || ""]));
+            await Promise.all([this.loadTranscript(), this.loadPeople()]);
+          }
+          if (this.active) this.timer = setTimeout(() => this.load(), 2000);
+        },
+
+        async loadTranscript() {
+          try {
+            this.transcript = await api(`jobs/${this.id}/transcript.md`);
+            const { header, body } = splitFrontmatter(this.transcript);
+            this.transcriptHeader = header;
+            this.transcriptHtml = renderMarkdown(body).replace(TS_PATTERN,
+              (m, h, mi, s) => `<a href="#" class="ts" data-t="${+h * 3600 + +mi * 60 + +s}">${m}</a>`);
+          } catch (e) { this.error = e.message; }
+        },
+
+        async loadPeople() {
+          try { this.people = (await api("people")).map((p) => p.name); } catch { /* facultatif */ }
+        },
+
+        // --- Intervenants ---
+        toggleSample(sp, sample) {
+          const key = `${sp.id}-${sample.n}`;
+          if (this.playing === key) { this.sampleAudio.pause(); this.playing = null; return; }
+          this.$refs.player.pause();
+          this.sampleAudio.src = apiUrl(`jobs/${this.id}/speakers/${sp.id}/samples/${sample.n}.mp3`);
+          this.sampleAudio.play();
+          this.playing = key;
+        },
+
+        async saveNames() {
+          this.savingNames = true;
+          try {
+            await api(`jobs/${this.id}/speakers`, { method: "PUT", json: this.names });
+            this.job = await api(`jobs/${this.id}`);
+            await Promise.all([this.loadTranscript(), this.loadPeople()]);
+            toast("Noms enregistrés");
+          } catch (e) { this.error = e.message; }
+          this.savingNames = false;
+        },
+
+        async rediarize() {
+          const n = parseInt(this.rediarizeCount, 10);
+          const msg = n ? `Relancer la diarisation avec ${n} intervenant(s) ?` : "Relancer la diarisation (nombre automatique) ?";
+          if (!confirm(msg + " Les noms attribués seront effacés.")) return;
+          try {
+            await api(`jobs/${this.id}/rediarize`, { method: "POST", json: n ? { num_speakers: n } : {} });
+            this.transcript = "";
+            await this.load();
+          } catch (e) { this.error = e.message; }
+        },
+
+        // --- Job ---
+        async cancel() {
+          if (!confirm("Annuler ce job ?")) return;
+          try { await api(`jobs/${this.id}/cancel`, { method: "POST" }); await this.load(); }
+          catch (e) { this.error = e.message; }
+        },
+
+        async remove() {
+          if (!confirm("Supprimer ce job et tous ses fichiers ?")) return;
+          try { await api(`jobs/${this.id}`, { method: "DELETE" }); location.href = "./"; }
+          catch (e) { this.error = e.message; }
+        },
+
+        startEdit() {
+          this.edit.title = this.job.title || "";
+          this.edit.meeting_date = (this.job.meeting_date || "").slice(0, 16);
+          this.editing = true;
+        },
+
+        async saveEdit() {
+          try {
+            const body = { title: this.edit.title };
+            if (this.edit.meeting_date) body.meeting_date = this.edit.meeting_date;
+            this.job = await api(`jobs/${this.id}`, { method: "PATCH", json: body });
+            this.editing = false;
+            if (this.completed) await this.loadTranscript();
+          } catch (e) { this.error = e.message; }
+        },
+
+        seek(event) {
+          const link = event.target.closest("a.ts");
+          if (!link) return;
+          event.preventDefault();
+          this.sampleAudio.pause();
+          this.playing = null;
+          const player = this.$refs.player;
+          player.currentTime = +link.dataset.t;
+          player.play();
+        },
+
+        async copyTranscript() {
+          try { await navigator.clipboard.writeText(this.transcript); toast("Transcript copié"); }
+          catch { toast("Copie impossible (contexte non sécurisé) : utilisez Télécharger"); }
+        },
+
+        // --- Comptes rendus ---
+        async loadSummaryOptions() {
+          try {
+            const [prompts, sys, summaries] = await Promise.all([api("prompts"), api("system"), api(`jobs/${this.id}/summaries`)]);
+            this.prompts = prompts;
+            this.summaryForm.prompt_id = prompts.length ? prompts[0].id : "";
+            this.ollama = sys.ollama;
+            this.llmApi = sys.llm_api;
+            this.summaryForm.model = sys.ollama.default_model;
+            this.setSummaries(summaries);
+          } catch (e) { this.summaryError = e.message; }
+        },
+
+        setSummaries(list) {
+          this.summaries = list;
+          if (!this.currentSummary && list.length) this.selectedSummary = list[0].id;
+          clearTimeout(this.summaryTimer);
+          if (this.summariesActive) this.summaryTimer = setTimeout(() => this.refreshSummaries(), 3000);
+        },
+
+        async refreshSummaries() {
+          try { this.setSummaries(await api(`jobs/${this.id}/summaries`)); } catch (e) { this.summaryError = e.message; }
+        },
+
+        providerChanged() {
+          this.summaryForm.model = this.summaryForm.provider === "ollama" ? this.ollama.default_model : (this.llmApi.model || "");
+        },
+
+        async generateSummary() {
+          this.summaryError = "";
+          try {
+            const body = { ...this.summaryForm };
+            if (!body.prompt_id) delete body.prompt_id;
+            if (!body.model) delete body.model;
+            const created = await api(`jobs/${this.id}/summaries`, { method: "POST", json: body });
+            this.selectedSummary = created.id;
+            await this.refreshSummaries();
+          } catch (e) { this.summaryError = e.message; }
+        },
+
+        async cancelSummary(s) {
+          try { await api(`summaries/${s.id}/cancel`, { method: "POST" }); await this.refreshSummaries(); }
+          catch (e) { this.summaryError = e.message; }
+        },
+
+        async deleteSummary(s) {
+          if (!confirm("Supprimer ce compte rendu ?")) return;
+          try {
+            await api(`summaries/${s.id}`, { method: "DELETE" });
+            if (this.selectedSummary === s.id) this.selectedSummary = null;
+            await this.refreshSummaries();
+          } catch (e) { this.summaryError = e.message; }
+        },
+
+        async copySummary() {
+          try { await navigator.clipboard.writeText(this.currentSummary.content); toast("Compte rendu copié"); }
+          catch { toast("Copie impossible : utilisez Télécharger"); }
+        },
+      };
+    }
+  </script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body x-data="jobPage()" x-cloak>
+  <header class="top">
+    <a class="brand" href="./">Meeting Scribe</a>
+    <nav>
+      <a href="./">Réunions</a>
+      <a href="settings.html">Réglages</a>
+      <a href="docs" target="_blank">API</a>
+    </nav>
+    <span class="sys" x-text="sys"></span>
+  </header>
+
+  <main>
+    <p class="error" x-show="error" x-text="error"></p>
+
+    <template x-if="job">
+      <div>
+        <!-- En-tête du job -->
+        <section class="card">
+          <template x-if="!editing">
+            <div class="row" style="align-items:flex-start">
+              <div style="flex:1; min-width:0">
+                <h1 x-text="job.display_title"></h1>
+                <div class="meta">
+                  <span x-text="fmtDate(job.meeting_date || job.created_at)"></span>
+                  <span x-text="fmtDuration(job.duration)"></span>
+                  <span x-text="job.source_name || job.source_url"></span>
+                  <span x-text="`${job.model} · ${job.language} · ${job.device === 'cuda' ? 'GPU' : 'CPU'}`"></span>
+                </div>
+              </div>
+              <button class="small" @click="startEdit()">Modifier</button>
+              <button class="small" x-show="active" @click="cancel()">Annuler</button>
+              <button class="small danger" x-show="!active" @click="remove()">Supprimer</button>
+            </div>
+          </template>
+          <template x-if="editing">
+            <div class="grid cols-2">
+              <div><label>Titre</label><input type="text" x-model="edit.title" placeholder="nom du fichier par défaut"></div>
+              <div><label>Date de la réunion</label><input type="datetime-local" x-model="edit.meeting_date"></div>
+              <div class="row"><button class="primary" @click="saveEdit()">Enregistrer</button><button @click="editing = false">Annuler</button></div>
+            </div>
+          </template>
+
+          <template x-if="!completed">
+            <div>
+              <div class="steps">
+                <template x-for="step in steps" :key="step.name">
+                  <span :class="step.state" x-text="step.label"></span>
+                </template>
+              </div>
+              <template x-if="active && job.status !== 'queued'">
+                <div class="row">
+                  <div class="progress" style="flex:1"><div :style="`width:${job.progress}%`"></div></div>
+                  <span class="hint" x-text="`${Math.round(job.progress)} %`"></span>
+                </div>
+              </template>
+              <p class="hint" x-show="job.queue_position" x-text="`Position dans la file : ${job.queue_position}`"></p>
+            </div>
+          </template>
+          <p class="error" x-show="job.error" x-text="job.error" style="margin-top:12px"></p>
+        </section>
+
+        <!-- Intervenants -->
+        <section class="card" x-show="completed">
+          <h2>Intervenants <small>— écoutez les extraits et nommez chaque voix ; un même nom fusionne les intervenants</small></h2>
+          <datalist id="people">
+            <template x-for="p in people" :key="p"><option :value="p"></option></template>
+          </datalist>
+          <p class="hint" x-show="!job.speakers.length">
+            Aucune voix détectée par la diarisation. Si l'enregistrement contient bien de la parole, essayez
+            « Relancer la diarisation » avec un nombre d'intervenants imposé.
+          </p>
+          <div class="speakers-grid">
+            <template x-for="(sp, i) in job.speakers" :key="sp.id">
+              <div class="speaker">
+                <header>
+                  <span class="dot" :style="`background:${speakerColor(i)}`"></span>
+                  <strong x-text="sp.display_name"></strong>
+                  <span class="spacer"></span>
+                  <span class="hint" x-text="`${fmtDuration(sp.talk_time)} · ${Math.round(sp.share * 100)} %`"></span>
+                </header>
+                <div class="share"><div :style="`width:${sp.share * 100}%; background:${speakerColor(i)}`"></div></div>
+                <template x-for="sample in sp.samples" :key="sample.n">
+                  <div class="sample">
+                    <button @click="toggleSample(sp, sample)" :title="`${fmtTs(sample.start)} – ${fmtTs(sample.end)}`"
+                            x-text="playing === `${sp.id}-${sample.n}` ? '❚❚' : '▶'"></button>
+                    <p x-text="`« ${sample.text} »`"></p>
+                  </div>
+                </template>
+                <p class="hint" x-show="!sp.samples.length">Aucun extrait exploitable (intervention trop courte).</p>
+                <input type="text" list="people" style="margin-top:8px" :placeholder="`Nom de ${sp.display_name}`"
+                       x-model="names[sp.id]" @keydown.enter="saveNames()">
+              </div>
+            </template>
+          </div>
+          <div class="row" style="margin-top:16px">
+            <button class="primary" @click="saveNames()" :disabled="savingNames || !namesChanged">Enregistrer les noms</button>
+            <span class="spacer"></span>
+            <label style="margin:0">Mauvais nombre de voix ?</label>
+            <input type="number" min="1" max="30" style="width:90px" placeholder="auto" x-model="rediarizeCount">
+            <button @click="rediarize()">Relancer la diarisation</button>
+          </div>
+        </section>
+
+        <!-- Transcript et comptes rendus -->
+        <section class="card" x-show="completed">
+          <div class="tabs">
+            <button :class="{ active: tab === 'transcript' }" @click="tab = 'transcript'">Transcript</button>
+            <button :class="{ active: tab === 'summary' }" @click="tab = 'summary'">
+              Compte rendu <span x-show="summaries.length" x-text="`(${summaries.length})`"></span>
+            </button>
+          </div>
+
+          <div x-show="tab === 'transcript'">
+            <div class="row" style="margin-bottom:12px">
+              <a class="btn primary" :href="apiUrl(`jobs/${id}/transcript.md`, { download: 'true' })">Télécharger .md</a>
+              <button @click="copyTranscript()">Copier</button>
+              <a class="btn" :href="apiUrl(`jobs/${id}/transcript.json`)" target="_blank">JSON</a>
+              <span class="spacer"></span>
+              <span class="hint">Cliquez sur un horodatage pour écouter le passage.</span>
+            </div>
+            <details class="frontmatter"><summary>En-tête YAML</summary><pre><code x-text="transcriptHeader"></code></pre></details>
+            <div class="markdown" x-html="transcriptHtml" @click="seek($event)"></div>
+          </div>
+
+          <div x-show="tab === 'summary'">
+            <div class="grid cols-2">
+              <div>
+                <label>Prompt système</label>
+                <select x-model="summaryForm.prompt_id">
+                  <template x-for="p in prompts" :key="p.id">
+                    <option :value="p.id" x-text="p.name + (p.is_default ? ' (par défaut)' : '')"></option>
+                  </template>
+                </select>
+                <p class="hint"><a href="settings.html">Modifier les prompts</a></p>
+              </div>
+              <div class="grid cols-2">
+                <div>
+                  <label>Fournisseur</label>
+                  <select x-model="summaryForm.provider" @change="providerChanged()">
+                    <option value="ollama">Ollama (local)</option>
+                    <option value="openai" :disabled="!llmApi.configured">API compatible OpenAI</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Modèle</label>
+                  <template x-if="summaryForm.provider === 'ollama'">
+                    <select x-model="summaryForm.model">
+                      <template x-for="m in ollama.models || []" :key="m"><option :value="m" x-text="m"></option></template>
+                    </select>
+                  </template>
+                  <template x-if="summaryForm.provider !== 'ollama'">
+                    <input type="text" x-model="summaryForm.model">
+                  </template>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:12px">
+              <label>Consignes propres à cette réunion</label>
+              <textarea rows="3" x-model="summaryForm.meeting_prompt"
+                        placeholder="Ex. Réunion commerciale avec le client X ; mets en avant les objections et les prochaines étapes."></textarea>
+            </div>
+            <div class="row" style="margin-top:12px">
+              <button class="primary" @click="generateSummary()">Générer le compte rendu</button>
+              <label class="row" style="margin:0" x-show="summaryForm.provider === 'ollama'">
+                <input type="checkbox" x-model="summaryForm.think"> Mode réflexion (plus lent)
+              </label>
+            </div>
+            <p class="error" x-show="summaryError" x-text="summaryError" style="margin-top:12px"></p>
+
+            <template x-if="summaries.length">
+              <div style="margin-top:20px">
+                <template x-for="s in summaries" :key="s.id">
+                  <div class="list-item row" :class="{ active: s.id === selectedSummary }" @click="selectedSummary = s.id">
+                    <span class="badge" :class="statusClass(s.status)" x-text="statusLabel(s.status)"></span>
+                    <span x-text="fmtDate(s.created_at)"></span>
+                    <span class="hint" x-text="`${s.model} · ${s.prompt_name}`"></span>
+                    <span class="spacer"></span>
+                    <button class="small" x-show="isActive(s.status)" @click.stop="cancelSummary(s)">Annuler</button>
+                    <button class="small danger" x-show="!isActive(s.status)" @click.stop="deleteSummary(s)">Supprimer</button>
+                  </div>
+                </template>
+                <template x-if="currentSummary">
+                  <div style="margin-top:12px">
+                    <p class="hint" x-show="isActive(currentSummary.status)">
+                      Génération en cours… (un transcript d'1 h 30 peut demander plusieurs minutes)
+                    </p>
+                    <p class="error" x-show="currentSummary.error" x-text="currentSummary.error"></p>
+                    <template x-if="currentSummary.status === 'completed'">
+                      <div>
+                        <div class="row" style="margin-bottom:12px">
+                          <a class="btn primary" :href="apiUrl(`summaries/${currentSummary.id}.md`, { download: 'true' })">Télécharger .md</a>
+                          <button @click="copySummary()">Copier</button>
+                          <span class="spacer"></span>
+                          <span class="hint" x-show="currentSummary.prompt_tokens"
+                                x-text="`${currentSummary.prompt_tokens} tokens en entrée, ${currentSummary.completion_tokens} en sortie`"></span>
+                        </div>
+                        <div class="markdown" x-html="summaryHtml"></div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </section>
+      </div>
+    </template>
+  </main>
+
+  <div class="player" x-show="completed">
+    <audio x-ref="player" controls preload="none" :src="job ? apiUrl(`jobs/${id}/audio`) : ''"></audio>
+  </div>
+</body>
+</html>

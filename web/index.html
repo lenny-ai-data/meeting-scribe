@@ -1,1 +1,217 @@
-<!doctype html><meta charset="utf-8"><title>Meeting Scribe</title><p>Interface à venir. API : <a href="docs">docs</a></p>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meeting Scribe</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/purify.min.js"></script>
+  <script src="app.js"></script>
+  <script>
+    function home() {
+      return {
+        options: null,
+        file: null,
+        url: "",
+        form: { model: "", language: "", device: "", num_speakers: "", min_speakers: "", max_speakers: "",
+                vocabulary: "", title: "", meeting_date: "" },
+        over: false,
+        uploading: false,
+        uploadProgress: 0,
+        error: "",
+        jobs: [],
+        total: 0,
+        sys: "",
+        timer: null,
+
+        async init() {
+          try {
+            const sys = await api("system");
+            this.options = sys.options;
+            this.form.model = sys.options.default_model;
+            this.form.language = sys.options.default_language;
+            this.form.device = sys.options.default_device;
+          } catch (e) { this.error = e.message; }
+          await this.refresh();
+        },
+
+        async refresh() {
+          clearTimeout(this.timer);
+          try {
+            const data = await api("jobs?limit=100");
+            this.jobs = data.items;
+            this.total = data.total;
+            this.sys = await loadSystemBadge();
+          } catch (e) { this.error = e.message; }
+          const active = this.jobs.some((j) => isActive(j.status));
+          this.timer = setTimeout(() => this.refresh(), active ? 2000 : 15000);
+        },
+
+        pick(files) {
+          if (files && files.length) { this.file = files[0]; this.url = ""; }
+        },
+
+        async submit() {
+          this.error = "";
+          if (!this.file && !this.url.trim()) { this.error = "Choisissez un fichier ou saisissez une URL."; return; }
+          const fd = new FormData();
+          if (this.file) fd.append("file", this.file);
+          else fd.append("url", this.url.trim());
+          for (const [key, value] of Object.entries(this.form)) {
+            if (value !== "" && value !== null) fd.append(key, value);
+          }
+          this.uploading = true;
+          this.uploadProgress = 0;
+          try {
+            const job = await uploadForm("jobs", fd, (p) => (this.uploadProgress = p));
+            window.location.href = `job.html?id=${job.id}`;
+          } catch (e) {
+            this.error = e.message;
+          } finally {
+            this.uploading = false;
+          }
+        },
+
+        async remove(job) {
+          if (!confirm(`Supprimer « ${job.display_title} » et tous ses fichiers ?`)) return;
+          try { await api(`jobs/${job.id}`, { method: "DELETE" }); await this.refresh(); }
+          catch (e) { this.error = e.message; }
+        },
+      };
+    }
+  </script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body x-data="home()" x-cloak>
+  <header class="top">
+    <a class="brand" href="./">Meeting Scribe</a>
+    <nav>
+      <a href="./" class="active">Réunions</a>
+      <a href="settings.html">Réglages</a>
+      <a href="docs" target="_blank">API</a>
+    </nav>
+    <span class="sys" x-text="sys"></span>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Nouvelle transcription</h2>
+      <div class="dropzone" :class="{ over }"
+           @click="$refs.file.click()"
+           @dragover.prevent="over = true" @dragleave.prevent="over = false"
+           @drop.prevent="over = false; pick($event.dataTransfer.files)">
+        <input type="file" x-ref="file" hidden accept="audio/*,video/*,.m4a,.mp4,.mp3,.wav,.webm,.ogg"
+               @change="pick($event.target.files)">
+        <template x-if="!file">
+          <div><strong>Déposez un enregistrement</strong> (.m4a, .mp4…) ou cliquez pour le choisir</div>
+        </template>
+        <template x-if="file">
+          <div><strong x-text="file.name"></strong> — <span x-text="(file.size / 1048576).toFixed(1) + ' Mo'"></span>
+            <button class="small" @click.stop="file = null; $refs.file.value = ''">Retirer</button></div>
+        </template>
+      </div>
+      <div class="or">ou</div>
+      <input type="url" placeholder="URL YouTube (ou autre site pris en charge par yt-dlp)" x-model="url"
+             @input="if (url) file = null">
+
+      <details>
+        <summary>Options</summary>
+        <div class="grid cols-3">
+          <div>
+            <label>Modèle</label>
+            <select x-model="form.model">
+              <template x-for="m in options?.models || []" :key="m"><option :value="m" x-text="m"></option></template>
+            </select>
+          </div>
+          <div>
+            <label>Langue</label>
+            <select x-model="form.language">
+              <option value="fr">Français</option>
+              <option value="en">Anglais</option>
+            </select>
+          </div>
+          <div>
+            <label>Calcul</label>
+            <select x-model="form.device">
+              <option value="cuda">GPU</option>
+              <option value="cpu">CPU (lent)</option>
+            </select>
+          </div>
+          <div>
+            <label>Nombre d'intervenants</label>
+            <input type="number" min="1" max="30" placeholder="auto" x-model="form.num_speakers">
+          </div>
+          <div>
+            <label>Minimum</label>
+            <input type="number" min="1" max="30" placeholder="auto" x-model="form.min_speakers" :disabled="form.num_speakers">
+          </div>
+          <div>
+            <label>Maximum</label>
+            <input type="number" min="1" max="30" placeholder="auto" x-model="form.max_speakers" :disabled="form.num_speakers">
+          </div>
+        </div>
+        <div class="grid cols-2" style="margin-top:12px">
+          <div>
+            <label>Titre</label>
+            <input type="text" placeholder="par défaut : nom du fichier" x-model="form.title">
+          </div>
+          <div>
+            <label>Date de la réunion</label>
+            <input type="datetime-local" x-model="form.meeting_date">
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label>Vocabulaire (noms propres, sigles, jargon)</label>
+          <textarea rows="2" placeholder="Ex. Acme, Dupont, CRM, n8n" x-model="form.vocabulary"></textarea>
+        </div>
+      </details>
+
+      <div class="row" style="margin-top:16px">
+        <button class="primary" @click="submit()" :disabled="uploading">Transcrire</button>
+        <template x-if="uploading">
+          <div class="row" style="flex:1">
+            <div class="progress" style="flex:1"><div :style="`width:${uploadProgress * 100}%`"></div></div>
+            <span class="hint" x-text="`Envoi ${Math.round(uploadProgress * 100)} %`"></span>
+          </div>
+        </template>
+      </div>
+      <p class="error" x-show="error" x-text="error" style="margin-top:12px"></p>
+    </section>
+
+    <section class="card">
+      <h2>Réunions <small x-text="total ? `(${total})` : ''"></small></h2>
+      <p class="hint" x-show="!jobs.length">Aucune transcription pour l'instant.</p>
+      <div class="table-wrap" x-show="jobs.length">
+        <table>
+          <thead>
+            <tr><th>Titre</th><th class="hide-sm">Date</th><th class="hide-sm">Durée</th><th>Statut</th><th></th></tr>
+          </thead>
+          <tbody>
+            <template x-for="job in jobs" :key="job.id">
+              <tr>
+                <td>
+                  <a class="title" :href="`job.html?id=${job.id}`" x-text="job.display_title"></a>
+                  <div class="hint" x-text="`${job.model} · ${job.language}`"></div>
+                </td>
+                <td class="hide-sm" x-text="fmtDate(job.meeting_date || job.created_at)"></td>
+                <td class="hide-sm" x-text="fmtDuration(job.duration)"></td>
+                <td>
+                  <span class="badge" :class="statusClass(job.status)" x-text="statusLabel(job.status)"></span>
+                  <template x-if="isActive(job.status) && job.status !== 'queued'">
+                    <div class="progress" style="margin-top:4px"><div :style="`width:${job.progress}%`"></div></div>
+                  </template>
+                  <template x-if="job.queue_position">
+                    <div class="hint" x-text="`position ${job.queue_position}`"></div>
+                  </template>
+                </td>
+                <td style="text-align:right"><button class="small danger" @click="remove(job)">Supprimer</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
