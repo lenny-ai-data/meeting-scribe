@@ -1,0 +1,67 @@
+"""Génère les SVG du logo (vectorisation de logo-original.jpg) : `uv run python docs/branding/make_logo.py`.
+
+Les parties bleu nuit (haut de la capsule, bas du support, pied) s'éclaircissent en mode sombre.
+"""
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+MARK = """\
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}" role="img" aria-label="Meeting Scribe">
+  <style>
+    .navy {{ stroke: #07032e; }}
+    .shade-end {{ stop-color: #0a0634; }}
+    .cap-top {{ stop-color: #0d0b55; }}
+    @media (prefers-color-scheme: dark) {{
+      .navy {{ stroke: #e4e1ff; }}
+      .shade-end {{ stop-color: #0a0634; stop-opacity: 0; }}
+      .cap-top {{ stop-color: #2b30c4; }}
+    }}
+  </style>
+  <defs>
+    <linearGradient id="ms-cap" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" class="cap-top"/>
+      <stop offset="0.35" stop-color="#3527cf"/>
+      <stop offset="0.7" stop-color="#8b1ad0"/>
+      <stop offset="1" stop-color="#c41cdd"/>
+    </linearGradient>
+    <linearGradient id="ms-arc" x1="113" y1="0" x2="273" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1433c8"/>
+      <stop offset="0.5" stop-color="#5a1fd0"/>
+      <stop offset="1" stop-color="#c41cdc"/>
+    </linearGradient>
+    <linearGradient id="ms-shade" x1="0" y1="600" x2="0" y2="680" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a0634" stop-opacity="0"/>
+      <stop offset="1" class="shade-end"/>
+    </linearGradient>
+    <mask id="ms-bars">
+      <rect x="142" y="451" width="102" height="200" rx="51" fill="#fff"/>
+      <g fill="#000">
+        <rect x="157.5" y="526" width="13" height="66" rx="6.5"/>
+        <rect x="186.5" y="494" width="13" height="130" rx="6.5"/>
+        <rect x="215.5" y="526" width="13" height="66" rx="6.5"/>
+      </g>
+    </mask>
+  </defs>
+  <rect x="142" y="451" width="102" height="200" rx="51" fill="url(#ms-cap)" mask="url(#ms-bars)"/>
+  <g fill="none" stroke-width="16" stroke-linecap="round">
+    <path d="M121 579 V600 A72 72 0 0 0 265 600 V579" stroke="url(#ms-arc)"/>
+    <path d="M121 600 A72 72 0 0 0 265 600" stroke="url(#ms-shade)"/>
+  </g>
+  <g fill="none" stroke-width="14" stroke-linecap="round" class="navy">
+    <path d="M193 680 V704"/>
+    <path d="M161 710.5 H225"/>
+  </g>
+</svg>
+"""
+
+OUTPUTS = {
+    "web/logo-mark.svg": "105 443 176 282",   # cadrage serré (en-tête)
+    "web/favicon.svg": "58 446 270 270",      # carré (favicon)
+}
+
+if __name__ == "__main__":
+    for path, viewbox in OUTPUTS.items():
+        (ROOT / path).write_text(MARK.format(viewbox=viewbox), encoding="utf-8")
+        print("écrit", path)
