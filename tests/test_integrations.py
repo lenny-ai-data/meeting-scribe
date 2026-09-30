@@ -87,6 +87,9 @@ def fake_ytdlp(tmp_path, settings_env):
     script.write_text("""#!/bin/sh
 for last; do :; done
 case "$last" in *fail*) echo "ERROR: [youtube] abc: Sign in to confirm you're not a bot"; exit 1;; esac
+case "$last" in *flaky*)
+  [ -f "$YTDLP_COUNTER" ] || { touch "$YTDLP_COUNTER"; echo "ERROR: unable to download video data: HTTP Error 403: Forbidden"; exit 1; };;
+esac
 while [ "$1" != "-o" ]; do shift; done
 out=$(echo "$2" | sed 's/%(ext)s/webm/')
 dir=$(dirname "$out")
@@ -119,3 +122,13 @@ def test_youtube_failure_message(fake_ytdlp, client):
     job = wait_for(client, resp.json()["id"])
     assert job["status"] == "failed"
     assert "Sign in" in job["error"] and "youtube-cookies.txt" in job["error"]
+
+
+def test_youtube_transient_403_is_retried(fake_ytdlp, client, settings_env, tmp_path, monkeypatch):
+    from app import youtube
+
+    settings_env.setenv("YTDLP_COUNTER", str(tmp_path / "counter"))
+    monkeypatch.setattr(youtube, "RETRY_DELAYS", (0.1, 0.1))  # sans effet dans le sous-processus
+    resp = client.post("/api/jobs", data={"url": "https://www.youtube.com/watch?v=flaky"})
+    job = wait_for(client, resp.json()["id"], timeout=90)
+    assert job["status"] == "completed", job["error"]
