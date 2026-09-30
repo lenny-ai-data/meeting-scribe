@@ -126,3 +126,16 @@ def test_cancel_running_job(settings_env, audio_file):
         assert job["status"] == "cancelled"
         with db.db() as conn:
             assert conn.execute("SELECT status FROM tasks").fetchone()[0] == "cancelled"
+
+
+def test_patch_title_and_date(client, audio_file):
+    job = wait_for(client, upload(client, audio_file)["id"])
+    resp = client.patch(f"/api/jobs/{job['id']}", json={"title": "Comité", "meeting_date": "2026-10-02T09:00"})
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "Comité"
+    assert resp.json()["meeting_date"] == "2026-10-02T09:00:00+02:00"
+    md = client.get(f"/api/jobs/{job['id']}/transcript.md")
+    assert "2026-10-02_09h00_comite.md" in md.headers["content-disposition"]
+    resp = client.patch(f"/api/jobs/{job['id']}", json={"title": ""})
+    assert resp.json()["title"] is None
+    assert resp.json()["display_title"] == "reunion test"

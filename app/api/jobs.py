@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from .. import db
 from ..config import DEVICES, LANGUAGES, WHISPER_MODELS, get_settings
@@ -161,6 +162,24 @@ def list_jobs(limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0)
 @router.get("/jobs/{job_id}", summary="Détail d'un job (statut, progression, intervenants)")
 def get_job(job_id: str):
     return job_out(job_or_404(job_id), detail=True)
+
+
+class JobUpdate(BaseModel):
+    title: str | None = Field(None, description="Titre (vide = nom du fichier)")
+    meeting_date: str | None = Field(None, description="Date ISO 8601 de la réunion")
+
+
+@router.patch("/jobs/{job_id}", summary="Modifier le titre ou la date d'un job")
+def update_job(job_id: str, body: JobUpdate):
+    job_or_404(job_id)
+    fields = {}
+    if "title" in body.model_fields_set:
+        fields["title"] = (body.title or "").strip() or None
+    if "meeting_date" in body.model_fields_set and body.meeting_date:
+        fields["meeting_date"] = _parse_meeting_date(body.meeting_date)
+    if fields:
+        db.update_job(job_id, **fields)
+    return job_out(db.get_job(job_id), detail=True)
 
 
 @router.post("/jobs/{job_id}/cancel", summary="Annuler un job en attente ou en cours")
