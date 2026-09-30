@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__, db
-from .api import jobs, speakers, system
+from .api import jobs, prompts, speakers, summaries, system
 from .auth import require_token
 from .config import get_settings
+from .llm.summarize import run_summary_task
 from .worker.queue import Worker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -18,6 +19,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 async def lifespan(app: FastAPI):
     db.init_db()
     worker = Worker()
+    worker.handlers["summarize"] = run_summary_task
     app.state.worker = worker
     loop_task = asyncio.create_task(worker.run_forever())
     try:
@@ -41,7 +43,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
-    for module in (jobs, speakers, system):
+    for module in (jobs, speakers, summaries, prompts, system):
         api.include_router(module.router)
     app.include_router(api)
 

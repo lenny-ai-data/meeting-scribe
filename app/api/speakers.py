@@ -7,8 +7,9 @@ from pydantic import BaseModel, Field
 
 from .. import db
 from ..config import get_settings
-from ..jsonio import read_json
-from ..render import render_transcript, speaker_names, suggested_filename
+from .. import transcript
+from ..errors import ScribeError
+from ..render import speaker_names, suggested_filename
 from ..speakers import default_label, sample_path
 from ..worker.queue import Worker
 from .common import get_worker, job_or_404, link, require_completed
@@ -97,16 +98,15 @@ def people():
 # --- Transcript -----------------------------------------------------------------------
 
 def load_segments(job: dict) -> list[dict]:
-    path = get_settings().job_dir(job["id"]) / "result.json"
-    if not path.exists():
-        raise HTTPException(409, "Résultat de transcription introuvable")
-    return read_json(path)["segments"]
+    try:
+        return transcript.load_segments(job)
+    except ScribeError as exc:
+        raise HTTPException(409, str(exc))
 
 
 def transcript_markdown(job: dict) -> str:
-    settings = get_settings()
-    return render_transcript(job, load_segments(job), db.get_speakers(job["id"]), settings.diarization_model,
-                             settings.tz)
+    load_segments(job)
+    return transcript.transcript_markdown(job)
 
 
 def content_disposition(filename: str, download: bool) -> str:

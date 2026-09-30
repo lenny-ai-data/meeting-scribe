@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable
 
 from .. import db
 from ..config import APP_ROOT, get_settings
+from ..errors import ScribeError
 
 log = logging.getLogger("worker")
 
@@ -104,7 +105,8 @@ class Worker:
                 status = await self._run_inline(task)
         except Exception as exc:
             log.exception("Tâche %s en échec", task["id"])
-            await self._mark_failed(task, f"{type(exc).__name__}: {exc}")
+            message = str(exc) if isinstance(exc, ScribeError) else f"{type(exc).__name__}: {exc}"
+            await self._mark_failed(task, message)
             status = "failed"
         finally:
             self._current = None
