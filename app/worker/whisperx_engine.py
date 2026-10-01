@@ -168,7 +168,7 @@ class WhisperXEngine:
         if not settings.diarization_ready:
             raise ScribeError(
                 f"HF_TOKEN manquant : le modèle {settings.diarization_model} n'est pas embarqué dans l'image "
-                "et son téléchargement exige un jeton Hugging Face (voir README)."
+                "et son téléchargement exige un jeton Hugging Face (voir docs/technique.md)."
             )
         from whisperx.diarize import DiarizationPipeline
 

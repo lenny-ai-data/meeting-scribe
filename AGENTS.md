@@ -5,7 +5,7 @@ Ce document s'adresse à un agent ou à un développeur qui reprend le projet sa
 Les particularités d'une installation (adresses, matériel, tâches locales) vont dans `AGENTS.local.md`, exclu de Git et chargé par `CLAUDE.md` s'il existe.
 
 Pour le reste :
-- l'usage, l'API et la configuration sont dans le [README](README.md) ;
+- l'installation et l'usage courant sont dans le [README](README.md) ; la configuration, l'API et l'exploitation dans la [documentation technique](docs/technique.md) ;
 - toutes les variables d'environnement sont dans [.env.example](.env.example).
 
 ## 1. Le projet
@@ -107,6 +107,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 | `web/` | Interface : `index.html`, `job.html`, `settings.html`, `app.js`, `style.css`, `vendor/` (Alpine.js, marked, DOMPurify), logos et favicons |
 | `tests/` | pytest : jobs, GPU, intervenants et rendu, comptes rendus, intégrations (YouTube, callbacks, auth) |
 | `docs/branding/` | Logo d'origine et `make_logo.py`, qui génère tous les SVG, ICO et PNG de `web/` |
+| `docs/technique.md` | Documentation technique destinée aux utilisateurs : configuration, profils, API, exploitation, dépannage |
 
 ## 5. Journal des décisions
 
