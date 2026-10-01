@@ -128,6 +128,10 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
   - **Contrôle de la VRAM** : au début seulement, vérifier qu'il reste assez de VRAM libre : seuil selon le modèle (`MIN_VRAM_GB` dans `config.py` : 10 Go en `large-v3`, 6 Go en `large-v3-turbo`, pour les cartes de 8 Go), ou `MIN_FREE_VRAM_GB` s'il est défini. En dessous, le job échoue avec un message clair, plutôt que d'aller jusqu'à une erreur CUDA de mémoire. Le pic réellement alloué par torch est écrit dans `pipeline.log` après chaque étape.
   - **Pourquoi** : un autre client d'Ollama (Open WebUI, par exemple) peut recharger un modèle à tout moment.
   - Tout cela est sauté si le job tourne en `device=cpu`.
+- **Progression** (`Reporter` dans `pipeline.py`) : `progress` (0-100) par étape, et `progress_detail`, un texte libre affiché sous la barre (téléchargement d'un modèle avec sa taille, chargement, taille des lots). Un champ plutôt qu'un nouveau statut, pour ne pas changer la liste des statuts sur laquelle s'appuient les intégrations.
+  - WhisperX signale l'avancée par rafales, à la fin de chaque lot : une avancée d'au moins 0,5 point est toujours écrite, les plus petites au plus une fois par seconde. L'ancienne règle (une écriture par seconde au plus) perdait toute la rafale sauf son premier point : 0 %, 5 %, puis 100 % sur CPU.
+  - **Lots plus petits sur CPU** (`batch_size_for`) : 4 au lieu de 16. Mesuré sur l'interview de 7 min 54 en turbo int8 : 91 s en lots de 16 (premier retour à 71 s), 92 s en lots de 8, 95 s en lots de 4 (un retour toutes les 18 s environ).
+  - **Téléchargement des modèles Whisper** au premier usage : fait à part (`_download_whisper`), dans un fil, en mesurant le dossier `blobs` du cache Hugging Face (le fichier `.incomplete` grossit au fil de l'eau) ; la taille attendue vient de l'API Hugging Face.
 - **Reprise après redémarrage** : une tâche restée `running` est remise en file une seule fois (`max_attempts=2`), puis marquée en échec.
 - **`rediarize`** : relance seulement la diarisation à partir de `aligned.json` (environ 1 min). Un échec garde le résultat précédent ; le job reste `completed`, avec le message d'erreur.
 

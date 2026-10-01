@@ -3,25 +3,46 @@
 Les modèles sont chargés l'un après l'autre et libérés entre chaque étape.
 """
 
+import fnmatch
 import gc
 import inspect
 import logging
 import os
+import threading
 from pathlib import Path
 
 from ..config import Settings
 from ..errors import ScribeError
 from ..llm.config import llm_config
 from . import gpu
+from .engine import Detail, no_detail
 
 log = logging.getLogger("whisperx")
 
 
+# Fichiers téléchargés par faster-whisper (faster_whisper.utils.download_model)
+WHISPER_FILES = ["config.json", "preprocessor_config.json", "model.bin", "tokenizer.json", "vocabulary.*"]
+
+
+def format_size(n: float) -> str:
+    """Taille lisible, à la française : 850 Mo, 1,6 Go."""
+    if n < 1e9:
+        return f"{n / 1e6:.0f} Mo"
+    return f"{n / 1e9:.1f} Go".replace(".", ",")
+
+
+def _dir_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+    return sum(f.stat().st_size for f in path.iterdir() if f.is_file())
+
+
 class WhisperXEngine:
-    def __init__(self, settings: Settings, device: str):
+    def __init__(self, settings: Settings, device: str, on_detail: Detail = no_detail):
         self.settings = settings
         self.device = device
         self.compute_type = "float16" if device == "cuda" else "int8"
+        self.on_detail = on_detail
 
     def _free(self, step: str) -> None:
         gc.collect()
@@ -51,16 +72,69 @@ class WhisperXEngine:
 
         return whisperx.load_audio(str(wav))
 
+    def _repo_size(self, repo: str) -> int | None:
+        """Taille totale des fichiers du modèle sur Hugging Face, ou None si elle est inconnue (hors ligne…)."""
+        try:
+            from huggingface_hub import HfApi
+
+            info = HfApi().model_info(repo, files_metadata=True)
+        except Exception as exc:
+            log.info("Taille de %s inconnue : %s", repo, exc)
+            return None
+        sizes = [f.size or 0 for f in info.siblings or []
+                 if any(fnmatch.fnmatch(f.rfilename, pattern) for pattern in WHISPER_FILES)]
+        return sum(sizes) or None
+
+    def _download_whisper(self, model: str) -> None:
+        """Télécharge le modèle au premier usage en suivant le cache : sans cela, l'étape reste
+        à 0 % pendant de longues minutes (1,6 Go pour large-v3-turbo, 3 Go pour large-v3)."""
+        from faster_whisper.utils import _MODELS, download_model
+        from huggingface_hub.constants import HF_HUB_CACHE
+
+        try:
+            download_model(model, local_files_only=True)
+            return
+        except Exception:
+            pass
+        repo = _MODELS.get(model, model)
+        total = self._repo_size(repo)
+        blobs = Path(HF_HUB_CACHE) / f"models--{repo.replace('/', '--')}" / "blobs"
+        errors: list[BaseException] = []
+
+        def run() -> None:
+            try:
+                download_model(model)
+            except BaseException as exc:
+                errors.append(exc)
+
+        log.info("Téléchargement de %s (%s)", repo, format_size(total) if total else "taille inconnue")
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        while thread.is_alive():
+            thread.join(1.0)
+            done = _dir_size(blobs)
+            text = f"Téléchargement du modèle {model} (premier usage) : {format_size(done)}"
+            if total:
+                self.on_detail(f"{text} sur {format_size(total)}", min(99.0, 100 * done / total))
+            else:
+                self.on_detail(text, None)
+        if errors:
+            raise ScribeError(f"Téléchargement du modèle {model} impossible : {errors[0]}") from errors[0]
+
     def transcribe(self, audio, model, language, vocabulary, on_progress):
         import whisperx
 
+        self._download_whisper(model)
         asr_options = {"initial_prompt": vocabulary} if vocabulary else None
         log.info("Chargement de %s (%s, %s)", model, self.device, self.compute_type)
+        self.on_detail(f"Chargement du modèle {model}", 0)
         pipeline = whisperx.load_model(
             model, self.device, compute_type=self.compute_type, language=language,
             asr_options=asr_options, threads=max(4, (os.cpu_count() or 8) // 2),
         )
-        kwargs = {"batch_size": self.settings.batch_size, "language": language, "progress_callback": on_progress}
+        batch_size = self.settings.batch_size_for(self.device)
+        self.on_detail(f"Transcription par lots de {batch_size} passages de 30 s", 0)
+        kwargs = {"batch_size": batch_size, "language": language, "progress_callback": on_progress}
         # Option présente seulement dans les versions récentes de WhisperX
         if "interleaved_context" in inspect.signature(pipeline.transcribe).parameters:
             kwargs["interleaved_context"] = True
@@ -72,7 +146,9 @@ class WhisperXEngine:
     def align(self, result, audio, language, on_progress):
         import whisperx
 
+        self.on_detail("Chargement du modèle d’alignement (téléchargé au premier usage)", None)
         model, metadata = whisperx.load_align_model(language_code=language, device=self.device)
+        self.on_detail(None, None)
         aligned = whisperx.align(result["segments"], model, metadata, audio, self.device,
                                  return_char_alignments=False, progress_callback=on_progress)
         del model

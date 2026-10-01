@@ -444,6 +444,7 @@
                     <span class="hint" x-text="`${Math.round(job.progress)} %`"></span>
                   </div>
                 </template>
+                <p class="hint" x-show="active && job.progress_detail" x-text="job.progress_detail" style="margin:6px 0 0"></p>
                 <p class="hint" x-show="job.queue_position" x-text="`Position dans la file : ${job.queue_position}`"></p>
               </div>
             </template>

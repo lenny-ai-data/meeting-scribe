@@ -164,6 +164,7 @@ Toutes les variables sont dans [.env.example](.env.example), commentées. Après
 | `DEFAULT_MODEL` | `large-v3` | `large-v3` (plus précis) ou `large-v3-turbo` (plus rapide, moins de VRAM) |
 | `DEFAULT_LANGUAGE` | `fr` | `fr` ou `en` |
 | `DEFAULT_DEVICE` | `cuda` | `cuda` ou `cpu` |
+| `BATCH_SIZE` | 16 sur GPU, 4 sur CPU | Passages de 30 s transcrits par lot. La progression n'avance qu'à la fin de chaque lot : sur CPU, 4 la met à jour environ toutes les 20 s, pour 4 % de temps en plus |
 | `MIN_FREE_VRAM_GB` | selon le modèle | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA. Par défaut : 10 Go en `large-v3`, 6 Go en `large-v3-turbo` |
 | `DIARIZATION_MODEL_DIR` | `/opt/models/pyannote/speaker-diarization-community-1` | Copie locale du modèle pyannote ; si elle existe, ni jeton ni réseau ne sont nécessaires |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama de l'hôte (valeur initiale, modifiable dans *Réglages*) |
@@ -266,7 +267,7 @@ Deux workflows n8n prêts à importer (Google Drive → transcription → Google
 | Appel | Rôle |
 |---|---|
 | `POST /api/jobs` (multipart) | `file` ou `url`, plus `model`, `language`, `device`, `num_speakers` / `min_speakers` / `max_speakers`, `vocabulary`, `title`, `meeting_date`, `source_name`, `external_ref`, `callback_url` |
-| `GET /api/jobs`, `GET /api/jobs/{id}` | Statut (`queued`, `downloading`, `preparing`, `transcribing`, `aligning`, `diarizing`, `completed`, `failed`, `cancelled`), progression, intervenants |
+| `GET /api/jobs`, `GET /api/jobs/{id}` | Statut (`queued`, `downloading`, `preparing`, `transcribing`, `aligning`, `diarizing`, `completed`, `failed`, `cancelled`), progression (`progress`, et `progress_detail` : téléchargement d'un modèle, lot en cours…), intervenants |
 | `PATCH /api/jobs/{id}` | Titre, date |
 | `POST /api/jobs/{id}/cancel`, `DELETE /api/jobs/{id}` | Annuler, supprimer |
 | `GET /api/jobs/{id}/speakers` | Intervenants, temps de parole, extraits (`…/samples/{n}.mp3`) |

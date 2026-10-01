@@ -35,7 +35,9 @@ class Settings(BaseSettings):
     default_model: str = "large-v3"
     default_language: str = "fr"
     default_device: str = "cuda"
-    batch_size: int = 16
+    # Segments de 30 s traités par lot ; vide = 16 sur GPU, 4 sur CPU (même vitesse à 4 % près,
+    # mais une progression mise à jour toutes les 20 s environ au lieu d'une ou deux fois par job)
+    batch_size: int | None = None
     # Seuil de VRAM libre imposé quel que soit le modèle (Go) ; vide = selon le modèle (MIN_VRAM_GB)
     min_free_vram_gb: float | None = None
     diarization_model: str = "pyannote/speaker-diarization-community-1"
@@ -86,6 +88,9 @@ class Settings(BaseSettings):
     @property
     def diarization_ready(self) -> bool:
         return self.diarization_bundled or bool(self.hf_token)
+
+    def batch_size_for(self, device: str) -> int:
+        return self.batch_size or (16 if device == "cuda" else 4)
 
     def min_vram_gb(self, model: str) -> float:
         if self.min_free_vram_gb is not None:

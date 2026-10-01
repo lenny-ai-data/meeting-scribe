@@ -213,3 +213,51 @@ def test_patch_title_and_date(client, audio_file):
     resp = client.patch(f"/api/jobs/{job['id']}", json={"title": ""})
     assert resp.json()["title"] is None
     assert resp.json()["display_title"] == "reunion test"
+
+
+def test_progress_burst_is_not_lost(settings_env):
+    """Une rafale d'avancées (un lot WhisperX) est écrite, pas seulement son premier point."""
+    from app.worker.pipeline import Reporter
+
+    db.init_db()
+    job = db.create_job(status="queued", model="large-v3", language="fr", device="cpu")
+    rep = Reporter(job["id"])
+    rep.stage("transcribing")
+    for k in range(1, 5):  # quatre segments signalés dans la même seconde
+        rep.progress(k * 5)
+    assert db.get_job(job["id"])["progress"] == 20
+    rep.progress(20.2)  # petite avancée immédiate : différée
+    assert db.get_job(job["id"])["progress"] == 20
+
+    rep.detail("Téléchargement du modèle large-v3 (premier usage) : 1,2 Go sur 3,1 Go", 38.7)
+    job_now = db.get_job(job["id"])
+    assert job_now["progress"] == 38.7 and job_now["progress_detail"].startswith("Téléchargement")
+    rep.detail("Chargement du modèle large-v3", 0)  # la barre peut repartir de zéro
+    assert db.get_job(job["id"])["progress"] == 0
+    rep.stage("aligning")
+    assert db.get_job(job["id"])["progress_detail"] is None
+
+
+def test_progress_detail_column_added_to_old_database(settings_env):
+    db.init_db()
+    with db.db() as conn:
+        conn.execute("ALTER TABLE jobs DROP COLUMN progress_detail")
+    db.init_db()
+    with db.db() as conn:
+        assert "progress_detail" in {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
+
+
+def test_batch_size_by_device(settings_env):
+    settings = get_settings()
+    assert settings.batch_size_for("cuda") == 16
+    assert settings.batch_size_for("cpu") == 4
+    settings_env.setenv("BATCH_SIZE", "8")
+    get_settings.cache_clear()
+    assert get_settings().batch_size_for("cpu") == 8
+
+
+def test_format_size():
+    from app.worker.whisperx_engine import format_size
+
+    assert format_size(850e6) == "850 Mo"
+    assert format_size(1.62e9) == "1,6 Go"

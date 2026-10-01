@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     finished_at TEXT,
     status TEXT NOT NULL,
     progress REAL NOT NULL DEFAULT 0,
+    progress_detail TEXT,
     error TEXT,
     title TEXT,
     meeting_date TEXT,
@@ -153,6 +154,10 @@ def init_db() -> None:
     with db() as conn:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+        # Colonnes ajoutées après la création des premières bases
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
+        if "progress_detail" not in columns:
+            conn.execute("ALTER TABLE jobs ADD COLUMN progress_detail TEXT")
         if conn.execute("SELECT COUNT(*) FROM prompts").fetchone()[0] == 0:
             ts = now_iso()
             conn.execute(
