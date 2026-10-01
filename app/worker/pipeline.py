@@ -82,14 +82,14 @@ def run_transcribe(job: dict, task: dict, rep: Reporter) -> None:
     db.update_job(job["id"], **fields)
 
     engine = make_engine(settings, job["device"])
-    engine.prepare_gpu(check_vram=True)
+    engine.prepare_gpu(check_vram=True, model=job["model"])
     audio = engine.load_audio(wav)
 
     rep.stage("transcribing")
     raw = engine.transcribe(audio, job["model"], job["language"], job["vocabulary"], rep.progress)
     write_json(job_dir / "transcription.json", raw)
 
-    engine.prepare_gpu(check_vram=False)
+    engine.prepare_gpu(check_vram=False, model=job["model"])
     rep.stage("aligning")
     aligned = engine.align(raw, audio, job["language"], rep.progress)
     write_json(job_dir / "aligned.json", aligned)
@@ -104,7 +104,7 @@ def run_rediarize(job: dict, task: dict, rep: Reporter) -> None:
     if not aligned_path.exists():
         raise PipelineError("Transcription alignée introuvable : relancez une transcription complète.")
     engine = make_engine(settings, job["device"])
-    engine.prepare_gpu(check_vram=True)
+    engine.prepare_gpu(check_vram=True, model=job["model"])
     audio = engine.load_audio(job_dir / "audio.wav")
     diarize_and_finish(job, engine, audio, read_json(aligned_path), rep)
 

@@ -138,7 +138,11 @@
                 <div class="hint" x-text="`Modèle par défaut : ${system.ollama.default_model}`"></div>
               </td></tr>
               <tr><th>API LLM</th><td x-text="system.llm_api.configured ? `${system.llm_api.base_url} — ${system.llm_api.model}` : 'non configurée (LLM_API_BASE_URL, LLM_API_MODEL)'"></td></tr>
-              <tr><th>Jeton Hugging Face</th><td x-text="system.hf_token ? 'présent' : 'absent : la diarisation échouera'"></td></tr>
+              <tr><th>Diarisation</th><td>
+                <span x-text="system.diarization.model"></span>
+                <div class="hint" x-text="system.diarization.bundled ? 'modèle embarqué dans l’image : jeton Hugging Face inutile'
+                  : system.hf_token ? 'téléchargé avec le jeton Hugging Face' : 'modèle absent et jeton Hugging Face manquant : la diarisation échouera'"></div>
+              </td></tr>
               <tr><th>File d'attente</th><td x-text="`${system.queue.running ? '1 tâche en cours' : 'aucune tâche en cours'}, ${system.queue.queued} en attente`"></td></tr>
               <tr><th>Versions</th><td>
                 <div class="versions">

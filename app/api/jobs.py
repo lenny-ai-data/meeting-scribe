@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .. import db
-from ..config import DEVICES, LANGUAGES, WHISPER_MODELS, get_settings
+from ..config import LANGUAGES, WHISPER_MODELS, available_devices, get_settings
 from ..render import display_title
 from ..worker.queue import Worker
 from .common import get_worker, job_or_404, link
@@ -126,7 +126,7 @@ async def create_job(
     job = db.create_job(
         model=_check_choice(model, settings.default_model, WHISPER_MODELS, "model"),
         language=_check_choice(language, settings.default_language, LANGUAGES, "language"),
-        device=_check_choice(device, settings.default_device, DEVICES, "device"),
+        device=_check_choice(device, settings.default_device, available_devices(settings), "device"),
         num_speakers=num_speakers, min_speakers=min_speakers, max_speakers=max_speakers,
         vocabulary=(vocabulary or "").strip() or None,
         title=(title or "").strip() or None,
