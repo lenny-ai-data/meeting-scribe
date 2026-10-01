@@ -169,8 +169,13 @@ def build_units(segments: list[dict]) -> list[Unit]:
 
 
 def build_turns(segments: list[dict], names: dict[str, str], language: str) -> list[Turn]:
+    return group_turns(build_units(segments), names, language)
+
+
+def group_turns(units: list[Unit], names: dict[str, str], language: str) -> list[Turn]:
+    """Tours de parole nommés, découpés en paragraphes (pause de plus de PARAGRAPH_GAP, ou PARAGRAPH_MAX)."""
     turns: list[Turn] = []
-    for unit in build_units(segments):
+    for unit in units:
         name = names.get(unit.speaker or "") or default_label(unit.speaker, language)
         if turns and turns[-1].name == name:
             para = turns[-1].paragraphs[-1]
