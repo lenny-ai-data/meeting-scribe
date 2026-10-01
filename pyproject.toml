@@ -36,6 +36,9 @@ dev = ["pytest>=8"]
 [tool.uv]
 # Les deux variantes de torch ne peuvent pas cohabiter
 conflicts = [[{ extra = "cpu" }, { extra = "cuda" }]]
+# torchcodec 0.7 (celui de torch 2.8) n'a pas de roue Linux arm64. pyannote s'en passe : il ne sert
+# qu'à lire des fichiers audio, alors que l'audio lui est passé déjà décodé (waveform en mémoire)
+override-dependencies = ["torchcodec==0.7.* ; sys_platform != 'linux' or platform_machine != 'aarch64'"]
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128", extra = "cuda" }, { index = "pytorch-cpu", extra = "cpu" }]
