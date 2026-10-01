@@ -88,7 +88,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 | `app/main.py` | Application FastAPI : lifespan (base, reprise des tâches, worker, handler summarize, hook callbacks), `/api/health` sans auth, montage de `web/` |
 | `app/config.py` | `Settings` (pydantic-settings), `WHISPER_MODELS`, `LANGUAGES`, `DEVICES` |
 | `app/db.py` | Schéma SQLite et accès : une connexion par opération ; `claim_next_task` en `BEGIN IMMEDIATE` ; `recover_interrupted_tasks` |
-| `app/api/` | Routes : `jobs`, `speakers`, `summaries`, `prompts`, `system`, et `common` pour les aides partagées |
+| `app/api/` | Routes : `jobs`, `speakers`, `summaries`, `prompts`, `settings` (réglages LLM), `system`, et `common` pour les aides partagées |
 | `app/auth.py` | `API_TOKEN` optionnel (`Authorization: Bearer` ou `?token=`) |
 | `app/worker/queue.py` | Worker : file, lancement du sous-processus, annulation, échecs |
 | `app/worker/pipeline.py` | Point d'entrée du sous-processus : `run_transcribe`, `run_rediarize`, `diarize_and_finish` |
@@ -100,7 +100,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 | `app/speakers.py` | Libellés S1…, temps de parole, choix des extraits, `finalize` |
 | `app/render.py` | Construction des tours et rendu Markdown ; titre, frontmatter, nom de fichier suggéré |
 | `app/transcript.py` | Chargement des segments, `transcript_markdown` |
-| `app/llm/` | `base` (fournisseur, `num_ctx`), `ollama`, `openai_compat`, `summarize` (tâche), `prompts` (prompt système par défaut) |
+| `app/llm/` | `base` (fournisseur, `num_ctx`), `config` (réglages effectifs : base puis `.env`), `ollama`, `openai_compat`, `summarize` (tâche), `prompts` (prompt système par défaut) |
 | `app/callbacks.py` | Webhooks sortants |
 | `web/` | Interface : `index.html`, `job.html`, `settings.html`, `app.js`, `style.css`, `vendor/` (Alpine.js, marked, DOMPurify), logos et favicons |
 | `tests/` | pytest : jobs, GPU, intervenants et rendu, comptes rendus, intégrations (YouTube, callbacks, auth) |
@@ -192,7 +192,11 @@ Réglages issus de tests sur des enregistrements réels :
 
 - **Deux fournisseurs** :
   - **Ollama**, en local : `/api/chat`, `stream=false`, `think` désactivé par défaut. Les blocs `<think>` résiduels sont retirés.
-  - **Distant : un seul connecteur générique compatible OpenAI** (`/chat/completions`), choix de l'utilisateur. Il couvre OpenAI, Mistral, OpenRouter… La clé ne vient que de l'environnement et n'est jamais renvoyée par l'API.
+  - **Distant : un seul connecteur générique compatible OpenAI** (`/chat/completions`), choix de l'utilisateur. Il couvre OpenAI, Mistral, OpenRouter, et les serveurs locaux LM Studio, llama.cpp, vLLM.
+- **Réglages LLM en base** (`app/llm/config.py`, table `settings`, clé `llm`), modifiables dans *Réglages* et par `/api/settings/llm` : ils priment sur le `.env` champ par champ ; `null` rend la valeur du `.env`. Choix de l'utilisateur, pour une diffusion où chacun branche son LLM sans éditer de fichier.
+  - La clé d'API peut donc être stockée en base (en clair dans `scribe.db`) ; elle est en écriture seule, jamais renvoyée par l'API.
+  - Pas de modèle Ollama par défaut (`OLLAMA_MODEL` vide) : l'API comme l'interface prennent alors le premier modèle installé.
+  - **Déchargement d'Ollama** avant un job GPU : automatique seulement si son hôte est `host.docker.internal`, `localhost` ou `127.0.0.1`. Un Ollama distant ne partage pas le GPU, et le décharger gênerait ses autres utilisateurs. Forçable dans *Réglages* ou par `OLLAMA_UNLOAD_BEFORE_GPU`.
 - **`num_ctx`** = caractères ÷ 3,5 × 1,15 + 8192 (réservés à la réponse), plafonné par `OLLAMA_MAX_CTX` (65536). Plus de contexte coûterait de la VRAM pour rien.
 - **Messages envoyés** :
   - `system` : le prompt système stocké, modifiable dans *Réglages* ; un prompt par défaut en français est créé au premier démarrage ;

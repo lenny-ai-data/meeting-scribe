@@ -9,7 +9,7 @@ Service auto-hébergé de transcription de réunions, en français ou en anglais
 - **Intervenants** : ils sont séparés automatiquement, puis nommés dans l'interface après écoute de courts extraits. Aucune empreinte vocale n'est conservée.
 - **Comptes rendus** : [Ollama](https://ollama.com) en local, ou n'importe quelle API compatible OpenAI (OpenAI, Mistral, OpenRouter…).
 - **Toute la logique est dans l'API** (`/api`, documentation interactive sur `/docs`). L'interface web n'en est qu'un client : n8n, un script ou un agent peuvent faire exactement la même chose.
-- **Un seul traitement à la fois**, pour qu'une seule carte graphique suffise : avant chaque transcription, les modèles d'Ollama sont déchargés de la VRAM.
+- **Un seul traitement à la fois**, pour qu'une seule carte graphique suffise : avant chaque transcription, les modèles d'Ollama sont déchargés de la VRAM quand il tourne sur la même machine.
 
 Né pour remplacer [Whishper](https://github.com/pluja/whishper), qui n'est plus maintenu.
 
@@ -137,10 +137,11 @@ Toutes les variables sont dans [.env.example](.env.example), commentées. Après
 | `DEFAULT_DEVICE` | `cuda` | `cuda` ou `cpu` |
 | `MIN_FREE_VRAM_GB` | selon le modèle | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA. Par défaut : 10 Go en `large-v3`, 6 Go en `large-v3-turbo` |
 | `DIARIZATION_MODEL_DIR` | `/opt/models/pyannote/speaker-diarization-community-1` | Copie locale du modèle pyannote ; si elle existe, ni jeton ni réseau ne sont nécessaires |
-| `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama de l'hôte |
-| `OLLAMA_MODEL` | `qwen3.8:27b` | Modèle des comptes rendus |
+| `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama de l'hôte (valeur initiale, modifiable dans *Réglages*) |
+| `OLLAMA_MODEL` | — | Modèle des comptes rendus ; vide = premier modèle installé |
+| `OLLAMA_UNLOAD_BEFORE_GPU` | automatique | Décharger Ollama avant une transcription GPU ; par défaut, seulement s'il tourne sur la même machine |
 | `OLLAMA_MAX_CTX` | `65536` | Plafond du contexte ; le contexte réel est ajusté à la longueur du transcript |
-| `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_API_MODEL` | — | API compatible OpenAI, en plus ou à la place d'Ollama |
+| `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_API_MODEL` | — | API compatible OpenAI, en plus ou à la place d'Ollama (valeurs initiales, modifiables dans *Réglages*) |
 | `API_TOKEN` | — | Si défini, chaque appel à `/api` doit porter `Authorization: Bearer <jeton>` |
 | `CALLBACK_TOKEN` | — | Envoyé dans l'en-tête `X-Scribe-Token` des callbacks |
 | `PUBLIC_BASE_URL` | — | Adresse publique du service, pour mettre des liens absolus dans les callbacks |
@@ -160,10 +161,10 @@ L'interface ne s'appuie que sur des URL relatives : elle fonctionne quelle que s
 
 ### Comptes rendus
 
-Trois possibilités, cumulables. Le fournisseur se choisit au moment de générer le compte rendu.
+Trois possibilités, cumulables. Le fournisseur se choisit au moment de générer le compte rendu. Tout se règle dans *Réglages › Modèles de langage* (ou par `PUT /api/settings/llm`), avec un bouton « Tester » qui liste les modèles disponibles ; ces réglages priment sur le `.env`, qui ne fournit que les valeurs initiales.
 
 **Ollama sur le même hôte** (configuration par défaut) :
-1. Installer Ollama et télécharger un modèle : `ollama pull qwen3.8:27b`, ou un modèle plus petit selon la VRAM, à indiquer dans `OLLAMA_MODEL`.
+1. Installer Ollama et télécharger un modèle : `ollama pull qwen3:8b`, ou un modèle plus gros si la VRAM le permet. Sans modèle par défaut choisi, le premier modèle installé est utilisé.
 2. Le rendre joignable depuis les conteneurs. Par défaut, Ollama n'écoute que sur `127.0.0.1`, que le conteneur ne peut pas atteindre :
    ```bash
    sudo systemctl edit ollama
@@ -176,9 +177,9 @@ Trois possibilités, cumulables. Le fournisseur se choisit au moment de génére
 
 Ollama et WhisperX ne tiennent généralement pas ensemble sur la carte. Meeting Scribe décharge donc les modèles d'Ollama avant chaque transcription, et fait passer les comptes rendus par la même file d'attente : les deux ne tournent jamais en même temps.
 
-**Ollama ailleurs** : indiquer son adresse dans `OLLAMA_URL`, par exemple `http://autre-machine:11434`. Attention : Meeting Scribe y déchargera quand même les modèles avant chaque transcription.
+**Ollama ailleurs** (une station du réseau) : indiquer son adresse, par exemple `http://192.168.1.20:11434`, avec Ollama lancé en `OLLAMA_HOST=0.0.0.0` sur cette machine. Meeting Scribe ne décharge Ollama avant une transcription que s'il tourne sur la même machine (`host.docker.internal`, `localhost`) ; le réglage « Libération du GPU » force l'un ou l'autre comportement.
 
-**API compatible OpenAI** : renseigner `LLM_API_BASE_URL` (par exemple `https://api.openai.com/v1`), `LLM_API_KEY` et `LLM_API_MODEL`. La clé n'est jamais renvoyée par l'API. Le transcript complet est alors envoyé à ce fournisseur.
+**API compatible OpenAI** : un service en ligne (OpenAI, Mistral, OpenRouter…) ou un serveur local qui expose `/v1/chat/completions` (LM Studio, llama.cpp, vLLM). Renseigner l'adresse (préréglages proposés), la clé si nécessaire et le modèle. La clé est enregistrée en base et n'est jamais renvoyée par l'API. Avec un service en ligne, le transcript complet est envoyé à ce fournisseur.
 
 **Aucun LLM** : la transcription fonctionne seule. Le voyant signale simplement qu'Ollama est injoignable.
 
@@ -250,6 +251,8 @@ Deux workflows n8n prêts à importer (Google Drive → transcription → Google
 | `GET /api/summaries/{id}.md` | Compte rendu |
 | `PATCH /api/summaries/{id}` | `{"content": "…"}` : retoucher le texte d'un compte rendu terminé |
 | `GET/POST/PUT/DELETE /api/prompts` | Prompts système |
+| `GET/PUT /api/settings/llm` | Fournisseurs LLM : adresse, modèle, clé (écriture seule) ; mise à jour partielle, `null` = valeur du `.env` |
+| `POST /api/settings/llm/test`, `GET /api/llm/models?provider=` | Tester un fournisseur, lister ses modèles |
 | `GET /api/system` | GPU, Ollama, file d'attente, versions ; `status.state` = `error`, `busy` ou `ready` |
 | `GET /api/health` | Toujours ouvert, même avec `API_TOKEN` |
 
