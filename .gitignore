@@ -4,8 +4,9 @@
 .env
 # Notes propres à une installation (adresses, matériel)
 AGENTS.local.md
-# Vidéo de présentation : projet local, hors dépôt
+# Vidéo de présentation et workflows n8n : propres à une installation, hors dépôt
 /promo/
+/docs/n8n/
 
 # Python
 __pycache__/
