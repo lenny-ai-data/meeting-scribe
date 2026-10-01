@@ -13,10 +13,10 @@
   --ok: #1d7a46;
   --warn: #9a6200;
   --err: #b42318;
-  /* Voyants : teintes désaturées, comme dans la vidéo de présentation */
-  --led-ok: #3fae74;
-  --led-busy: #c8902a;
-  --led-err: #c9463d;
+  /* Voyants : teintes franches, lisibles d'un coup d'œil */
+  --led-ok: #1e9e4f;
+  --led-busy: #d99200;
+  --led-err: #bd2217;
   --led-idle: #b9b6cc;
   /* Halos du fond (couleurs de la vidéo de présentation) */
   --halo-1: #3b2fd6;
@@ -49,9 +49,9 @@
     --ok: #4cc47f;
     --warn: #e0a93a;
     --err: #f97066;
-    --led-ok: #5cc48c;
-    --led-busy: #e3b04b;
-    --led-err: #ef6b61;
+    --led-ok: #2fbf68;
+    --led-busy: #f2a900;
+    --led-err: #e0342a;
     --led-idle: #4a4760;
     --halo-opacity: .30;
     --dots: rgb(255 255 255 / 6%);
@@ -77,9 +77,9 @@
   --ok: #4cc47f;
   --warn: #e0a93a;
   --err: #f97066;
-  --led-ok: #5cc48c;
-  --led-busy: #e3b04b;
-  --led-err: #ef6b61;
+  --led-ok: #2fbf68;
+  --led-busy: #f2a900;
+  --led-err: #e0342a;
   --led-idle: #4a4760;
   --halo-opacity: .30;
   --dots: rgb(255 255 255 / 6%);
@@ -176,20 +176,20 @@ header.top nav a.active, header.top nav a:hover { color: var(--text); }
 .led {
   --c: var(--led-idle);
   flex: none;
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, color-mix(in srgb, #fff 45%, var(--c)) 0%, var(--c) 60%);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 16%, transparent), 0 0 10px color-mix(in srgb, var(--c) 55%, transparent);
+  background: radial-gradient(circle at 35% 35%, color-mix(in srgb, #fff 22%, var(--c)) 0%, var(--c) 55%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent), 0 0 12px color-mix(in srgb, var(--c) 75%, transparent);
 }
 .led.ready { --c: var(--led-ok); }
 .led.busy { --c: var(--led-busy); animation: led-pulse 2.4s ease-in-out infinite; }
 .led.error { --c: var(--led-err); }
 .led.idle { box-shadow: none; }
-.led.sm { width: 7px; height: 7px; box-shadow: 0 0 6px color-mix(in srgb, var(--c) 50%, transparent); }
+.led.sm { width: 8px; height: 8px; box-shadow: 0 0 7px color-mix(in srgb, var(--c) 70%, transparent); }
 .led.sm.idle { box-shadow: none; }
 @keyframes led-pulse {
-  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 8%, transparent), 0 0 4px color-mix(in srgb, var(--c) 30%, transparent); opacity: .75; }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 12%, transparent), 0 0 5px color-mix(in srgb, var(--c) 45%, transparent); }
 }
 
 /* --- Mise en page : barre latérale + contenu ---------------------------------------------------- */
