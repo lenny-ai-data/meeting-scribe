@@ -15,7 +15,7 @@ Meeting Scribe transcrit des réunions :
 - **intervenants** : ils sont identifiés par diarisation, puis on les nomme dans l'interface en écoutant de courts extraits ;
 - **sorties** : un transcript Markdown (frontmatter YAML et tours de parole horodatés) et, en option, un compte rendu généré par un LLM.
 
-Le service est auto-hébergé sur une station avec une RTX 3090 et **remplace Whishper** (pluja/whishper, abandonné, encore sur `mon-serveur:8082`).
+Le service est auto-hébergé sur une station avec une RTX 3090 et **remplace Whishper** (pluja/whishper, abandonné). Whishper a été arrêté le 01/10/2026 (voir § 3).
 
 **Principe fondateur : toute la logique est dans l'API.** L'interface web n'en est qu'un client. Tout ce qu'elle fait doit rester faisable par n8n ou par un agent via `/api` (documentation OpenAPI sur `/docs`). Une fonctionnalité qui n'existerait que dans l'interface est un défaut.
 
@@ -49,7 +49,7 @@ Usage visé :
 | `n8n.local:5678` | n8n (autre machine du réseau local) |
 
 - Le conteneur joint Ollama par `host.docker.internal`, via `extra_hosts: host-gateway`.
-- Whishper et libretranslate-cuda tournent encore et occupent aussi le GPU (voir § 9).
+- Whishper, sa base MongoDB et libretranslate-cuda (projet Compose `whishper`, dans `le dossier de Whishper`) sont arrêtés depuis le 01/10/2026, avec `docker compose stop`. Les conteneurs et les données sont conservés, et la politique `unless-stopped` les laisse éteints après un redémarrage. Pour les relancer : `docker compose start` dans ce dossier.
 
 ## 4. Architecture
 
@@ -293,7 +293,8 @@ docker run --rm -u 1000:1000 -e HOME=/tmp -v $PWD:/work meeting-scribe-promo \
 
 ## 9. Reste à faire
 
-- [ ] **Bascule** : arrêter Whishper et libretranslate-cuda pour libérer la VRAM, puis éventuellement reprendre le port 8082. **Uniquement sur feu vert de l'utilisateur.**
+- [x] **Bascule** : Whishper et libretranslate-cuda arrêtés le 01/10/2026, sur demande de l'utilisateur.
+- [ ] En option : reprendre le port 8082, ou supprimer définitivement la pile Whishper. **Uniquement sur feu vert de l'utilisateur.**
 - [ ] Mettre `PUBLIC_BASE_URL=http://mon-serveur:8090` dans `.env` (à faire par l'utilisateur).
 - [ ] Importer les workflows n8n et les régler : identifiants Drive, identifiants de dossiers, activation. Puis test de bout en bout : dépôt Drive → `.md` sur Drive → renommage dans l'interface → `.md` mis à jour.
 - [ ] Tester un enregistrement de 1 h 30 : durée totale, VRAM, taille de contexte du compte rendu.
