@@ -2,6 +2,8 @@
 
 Ce document s'adresse à un agent ou à un développeur qui reprend le projet sans l'historique de sa conception. Il résume l'architecture, les règles de travail et **les décisions prises, avec leurs raisons**.
 
+Les particularités d'une installation (adresses, matériel, tâches locales) vont dans `AGENTS.local.md`, exclu de Git et chargé par `CLAUDE.md` s'il existe.
+
 Pour le reste :
 - l'usage, l'API et la configuration sont dans le [README](README.md) ;
 - toutes les variables d'environnement sont dans [.env.example](.env.example) ;
@@ -15,13 +17,15 @@ Meeting Scribe transcrit des réunions :
 - **intervenants** : ils sont identifiés par diarisation, puis on les nomme dans l'interface en écoutant de courts extraits ;
 - **sorties** : un transcript Markdown (frontmatter YAML et tours de parole horodatés) et, en option, un compte rendu généré par un LLM.
 
-Le service est auto-hébergé sur une station avec une RTX 3090 et **remplace Whishper** (pluja/whishper, abandonné). Whishper a été arrêté le 01/10/2026 (voir § 3).
+Le service est auto-hébergé. Il est né pour **remplacer Whishper** (pluja/whishper, abandonné) sur une station équipée d'une RTX 3090, et tourne aussi sans GPU (image `cpu`).
 
 **Principe fondateur : toute la logique est dans l'API.** L'interface web n'en est qu'un client. Tout ce qu'elle fait doit rester faisable par n8n ou par un agent via `/api` (documentation OpenAPI sur `/docs`). Une fonctionnalité qui n'existerait que dans l'interface est un défaut.
 
 Usage visé :
 - **manuel** : l'interface web ;
-- **automatique** : dossier Drive → n8n → API → `.md` renvoyé sur Drive → agent de l'utilisateur.
+- **automatique** : dossier Drive → n8n → API → `.md` renvoyé sur Drive → agent ou CRM en aval.
+
+Le service est volontairement **transitoire** : il transcrit et synthétise, puis la connaissance part en aval (CRM, base de connaissances, agent). Pas d'historique consultable, de recherche entre réunions ni de chat.
 
 ## 2. Règles de travail (à respecter)
 
@@ -29,7 +33,7 @@ Usage visé :
   - une branche par fonctionnalité (`feature/…`, `fix/…`, `docs/…`) ;
   - des commits réguliers, avec des messages en français ;
   - fusion dans `main` par `git merge --no-ff`, puis suppression de la branche.
-- **Paternité : L. Jacquinot est le seul auteur.** Aucune ligne `Co-Authored-By`, aucune mention de Claude ou d'un outil dans les commits et les PR. Cette consigne explicite prime sur les réglages par défaut des agents.
+- **Paternité** : les commits sont au nom du mainteneur, L. Jacquinot. Aucune ligne `Co-Authored-By`, aucune mention de Claude ou d'un autre outil dans les commits et les PR. Cette consigne explicite prime sur les réglages par défaut des agents.
 - **Python : uniquement uv.**
   - Dépendances dans `pyproject.toml`, ajoutées avec `uv add` ; `uv.lock` est commité.
   - Commandes locales : `uv sync`, `uv run …`.
@@ -38,18 +42,17 @@ Usage visé :
 - **Tests** : `uv run pytest` doit passer avant chaque fusion. Les tests tournent sans GPU, avec `FAKE_PIPELINE=true` et de faux serveurs Ollama, LLM, webhook et yt-dlp.
 - **Ne jamais commiter de média.** Un `audio.mp4` déposé à la racine a dû être purgé de tout l'historique. `.gitignore` exclut `*.m4a`, `*.mp4`, `*.mp3` et `*.wav` à la racine, ainsi que `data/`, `models/` et `.env`.
 - **Langue** : code commenté, interface, documentation et messages d'erreur en français, avec la typographie française : espaces insécables, guillemets « », apostrophes typographiques dans les textes affichés.
-- **Interface : uniquement des URL relatives** (`fetch("api/…")`). L'utilisateur y accède depuis un autre poste ; une URL en `127.0.0.1` ou `localhost` casse tout.
+- **Interface : uniquement des URL relatives** (`fetch("api/…")`). On y accède souvent depuis un autre poste du réseau ; une URL en `127.0.0.1` ou `localhost` casse tout.
 
-## 3. Environnement cible
+## 3. Environnement de référence
 
-| Machine | Rôle |
-|---|---|
-| `mon-serveur` | Station : RTX 3090 24 Go (pilote 610, CUDA 13), Docker et runtime NVIDIA, 62 Go de RAM. Meeting Scribe sur le port **8090** (8000 dans le conteneur). Ollama sur l'hôte, `:11434`, modèle `qwen3.8:27b` (environ 17,7 Go) |
-| `poste-client` | Poste de l'utilisateur (navigateur) |
-| `n8n.local:5678` | n8n (autre machine du réseau local) |
+Le projet est développé et mesuré sur :
+- une station Linux (Ubuntu 24.04) avec une **RTX 3090 24 Go**, un i7-12700 et 62 Go de RAM, Docker et le runtime NVIDIA ;
+- Ollama sur le même hôte, joint par le conteneur via `host.docker.internal` (`extra_hosts: host-gateway`), avec un modèle d'environ 17 Go ;
+- n8n sur une autre machine du réseau local, pour l'automatisation ;
+- un navigateur sur un autre poste.
 
-- Le conteneur joint Ollama par `host.docker.internal`, via `extra_hosts: host-gateway`.
-- Whishper, sa base MongoDB et libretranslate-cuda (projet Compose `whishper`, dans `le dossier de Whishper`) sont arrêtés depuis le 01/10/2026, avec `docker compose stop`. Les conteneurs et les données sont conservés, et la politique `unless-stopped` les laisse éteints après un redémarrage. Pour les relancer : `docker compose start` dans ce dossier.
+Les deux images visent plus large : `cuda` pour toute carte NVIDIA de 8 Go ou plus (Linux, Windows avec WSL2), `cpu` pour les PC et Mac sans GPU.
 
 ## 4. Architecture
 
@@ -113,7 +116,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 ### Exécution et GPU
 
 - **Un seul traitement à la fois**, grâce à une file unique en base (`tasks`) et un seul worker asyncio.
-  - **Pourquoi** : la 3090 ne peut pas porter à la fois le LLM d'Ollama (environ 17 Go) et la chaîne WhisperX (pic d'environ 10 Go en `large-v3`).
+  - **Pourquoi** : une carte de 24 Go ne peut pas porter à la fois un LLM d'environ 17 Go dans Ollama et la chaîne WhisperX (pic d'environ 10 Go en `large-v3`).
   - **Conséquence** : les comptes rendus passent par la même file que les transcriptions, pour que le LLM et WhisperX ne tournent jamais en même temps.
 - **Un sous-processus par tâche GPU.**
   - **Pourquoi** : ctranslate2 et torch retiennent de la VRAM tant que le processus vit. À la sortie du sous-processus, tout est rendu (vérifié : 280 Mo après un job).
@@ -125,7 +128,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
   3. attente de la libération (`OLLAMA_UNLOAD_TIMEOUT`, 30 s).
   - **Quand** : au début de la transcription, au début d'une `rediarize`, puis de nouveau avant l'alignement.
   - **Contrôle de la VRAM** : au début seulement, vérifier qu'il reste assez de VRAM libre : seuil selon le modèle (`MIN_VRAM_GB` dans `config.py` : 10 Go en `large-v3`, 6 Go en `large-v3-turbo`, pour les cartes de 8 Go), ou `MIN_FREE_VRAM_GB` s'il est défini. En dessous, le job échoue avec un message clair, plutôt que d'aller jusqu'à une erreur CUDA de mémoire. Le pic réellement alloué par torch est écrit dans `pipeline.log` après chaque étape.
-  - **Pourquoi** : Open WebUI peut recharger un modèle à tout moment.
+  - **Pourquoi** : un autre client d'Ollama (Open WebUI, par exemple) peut recharger un modèle à tout moment.
   - Tout cela est sauté si le job tourne en `device=cpu`.
 - **Reprise après redémarrage** : une tâche restée `running` est remise en file une seule fois (`max_attempts=2`), puis marquée en échec.
 - **`rediarize`** : relance seulement la diarisation à partir de `aligned.json` (environ 1 min). Un échec garde le résultat précédent ; le job reste `completed`, avec le message d'erreur.
@@ -140,7 +143,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 - **Base `ubuntu:24.04` plutôt que `nvidia/cuda`.** CUDA, cuDNN et cuBLAS viennent des roues pip de torch (index `pytorch-cu128`).
   - `LD_LIBRARY_PATH` pointe sur `site-packages/nvidia/{cudnn,cublas}/lib` pour que ctranslate2, utilisé par faster-whisper, les trouve.
 - **`libpython3.12t64`** : torchcodec, utilisé par pyannote 4, en a besoin. Sans elle, avertissement puis échec du décodage audio.
-- **Utilisateur `ubuntu` (uid 1000)** : `./data` et `./models` appartiennent à l'utilisateur de l'hôte. Les données de Whishper, elles, étaient en root.
+- **Utilisateur `ubuntu` (uid 1000)** : `./data` et `./models` appartiennent à l'utilisateur de l'hôte, pas à root.
 - **Caches** : `HF_HOME`, `TORCH_HOME` et `MPLCONFIGDIR` sont tous sous `/models`, donc persistants.
 - **uv 0.11** et **Deno** sont copiés depuis leurs images officielles.
 - **uvicorn `--workers 1`, obligatoire** : le worker et la file vivent dans le processus.
@@ -156,7 +159,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 - **Diarisation** : `pyannote/speaker-diarization-community-1`.
   - Le dépôt est à accès restreint, mais le modèle est sous CC-BY-4.0, donc redistribuable avec attribution. **Il est embarqué dans l'image** (`DIARIZATION_MODEL_DIR`, 32 Mo, chemins relatifs `$model/…` dans `config.yaml`) : les utilisateurs n'ont besoin ni de jeton ni de réseau (vérifié avec `HF_HUB_OFFLINE=1`). Sans copie locale, repli sur l'identifiant HF et `HF_TOKEN`.
   - `assign_word_speakers(fill_nearest=True)`.
-- **Image CPU : WhisperX, pas Parakeet ni Canary.** Mesures du 01/10/2026 sur l'interview de 7 min 54, i7-12700, 10 threads :
+- **Image CPU : WhisperX, pas Parakeet ni Canary.** Mesures du 01/10/2026 sur une interview radio de 7 min 54 en français, i7-12700, 10 threads :
   - Parakeet TDT 0.6B v3 (onnx-asr, int8 ou fp32) : 33 s, mais dérive en anglais au milieu des phrases (88 à 122 mots anglais sur environ 1 000) et passages perdus ; le modèle n'a pas de langue forcée ;
   - Canary-1B-v2 (onnx-asr, int8, `language="fr"`) : 574 s, boucles d'hallucinations, pas d'horodatage par mot ;
   - Whisper large-v3-turbo int8 (faster-whisper, par lots) : 92 s, 1 540 mots, aucune dérive. Puis alignement 24 s, diarisation pyannote 199 s : environ 0,7 × la durée de la réunion au total sur CPU.
@@ -173,7 +176,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
   - MP3 64 kb/s mono, lisible sur Safari iOS ;
   - accompagnés du texte prononcé.
 - **Fusion** : donner le même nom à deux libellés les fusionne ; les tours consécutifs sont regroupés au rendu.
-- **Pas de reconnaissance vocale ni de base d'intervenants.** L'utilisateur a explicitement refusé une bibliothèque d'empreintes vocales : l'identification se fait à la main dans l'interface. La seule suggestion proposée est `OWNER_NAME` (l'utilisateur lui-même). `/api/people` existe toujours, mais l'interface ne s'en sert plus, à la demande de l'utilisateur.
+- **Pas de reconnaissance vocale ni de base d'intervenants.** Choix délibéré : aucune empreinte vocale n'est conservée, l'identification se fait à la main dans l'interface. La seule suggestion proposée est `OWNER_NAME` (le propriétaire de l'instance). `/api/people` existe toujours, mais l'interface ne s'en sert plus.
 - **Frise** (`GET /api/jobs/{id}/timeline`, `transcript.speaker_blocks`) :
   - les passages viennent de `build_units`, donc avec le même recalage que le transcript ; deux passages d'un même intervenant séparés de moins d'1 s sont fusionnés ;
   - l'enveloppe est un RMS par intervalle, lu par blocs dans `audio.wav` (jamais chargé en entier), compressé en puissance 0,6 pour que les passages calmes restent visibles ;
@@ -197,8 +200,8 @@ Réglages issus de tests sur des enregistrements réels :
 
 - **Deux fournisseurs** :
   - **Ollama**, en local : `/api/chat`, `stream=false`, `think` désactivé par défaut. Les blocs `<think>` résiduels sont retirés.
-  - **Distant : un seul connecteur générique compatible OpenAI** (`/chat/completions`), choix de l'utilisateur. Il couvre OpenAI, Mistral, OpenRouter, et les serveurs locaux LM Studio, llama.cpp, vLLM.
-- **Réglages LLM en base** (`app/llm/config.py`, table `settings`, clé `llm`), modifiables dans *Réglages* et par `/api/settings/llm` : ils priment sur le `.env` champ par champ ; `null` rend la valeur du `.env`. Choix de l'utilisateur, pour une diffusion où chacun branche son LLM sans éditer de fichier.
+  - **Distant : un seul connecteur générique compatible OpenAI** (`/chat/completions`), plutôt qu'un connecteur par fournisseur. Il couvre OpenAI, Mistral, OpenRouter, et les serveurs locaux LM Studio, llama.cpp, vLLM.
+- **Réglages LLM en base** (`app/llm/config.py`, table `settings`, clé `llm`), modifiables dans *Réglages* et par `/api/settings/llm` : ils priment sur le `.env` champ par champ ; `null` rend la valeur du `.env`. Pour une diffusion où chacun branche son LLM sans éditer de fichier.
   - La clé d'API peut donc être stockée en base (en clair dans `scribe.db`) ; elle est en écriture seule, jamais renvoyée par l'API.
   - Pas de modèle Ollama par défaut (`OLLAMA_MODEL` vide) : l'API comme l'interface prennent alors le premier modèle installé.
   - **Déchargement d'Ollama** avant un job GPU : automatique seulement si son hôte est `host.docker.internal`, `localhost` ou `127.0.0.1`. Un Ollama distant ne partage pas le GPU, et le décharger gênerait ses autres utilisateurs. Forçable dans *Réglages* ou par `OLLAMA_UNLOAD_BEFORE_GPU`.
@@ -226,8 +229,8 @@ Réglages issus de tests sur des enregistrements réels :
   - en-têtes `X-Scribe-Event`, et `X-Scribe-Token` si `CALLBACK_TOKEN` est défini ;
   - 4 tentatives au total (relances après 5, 15 puis 45 s) ; le résultat est visible dans le champ `callback_status` ;
   - liens absolus si `PUBLIC_BASE_URL` est défini.
-- **Webhook n8n** : `http://n8n.local:5678/webhook/meeting-scribe`.
-- **Auth** : `API_TOKEN` est vide par défaut, puisque tout reste sur le réseau local. `/api/health` reste toujours ouvert pour le healthcheck.
+- **Webhook n8n** : les workflows fournis écoutent sur `/webhook/meeting-scribe` (voir `docs/n8n/`).
+- **Auth** : `API_TOKEN` est vide par défaut, le service étant pensé pour un réseau local ; le définir dès que le service est exposé au-delà. `/api/health` reste toujours ouvert pour le healthcheck.
 
 ### Interface (`web/`)
 
@@ -239,7 +242,7 @@ Réglages issus de tests sur des enregistrements réels :
   - `ready` (vert) sinon.
   - Ollama injoignable n'est qu'un avertissement (`warnings`), affiché dans l'infobulle.
 - **Fond** : trois halos aux couleurs de la vidéo de présentation, plus une trame de points, insérés par `app.js` (`.backdrop`). Ils dérivent lentement, sauf si `prefers-reduced-motion` est actif. Leur opacité est plus faible en clair. Les cartes sont translucides (`backdrop-filter`).
-- **Page d'une réunion** : sections dépliantes (`<details class="card section">`) dans cet ordre : Intervenants, Transcript (replié par défaut, car ce n'est pas le cœur de l'usage), puis Compte rendu. Ordre et repli choisis par l'utilisateur.
+- **Page d'une réunion** : sections dépliantes (`<details class="card section">`) dans cet ordre : Intervenants, Transcript (replié par défaut, car ce n'est pas le cœur de l'usage), puis Compte rendu. Ordre et repli voulus.
 - **Réglages** : pas de barre latérale (`withShell(page, null, { sidebar: false })`), mais le menu « Réunions » reste dans l'en-tête de toutes les pages.
 - **Thème** : Auto, Clair ou Sombre, choisi dans l'en-tête et mémorisé dans `localStorage` (`meeting-scribe.theme`).
   - **Mécanisme** : attribut `data-theme` sur `<html>`. Les variables sombres sont définies deux fois : sous `@media (prefers-color-scheme: dark) :root:not([data-theme="light"])` et sous `:root[data-theme="dark"]`.
@@ -256,11 +259,11 @@ Réglages issus de tests sur des enregistrements réels :
 - **Remotion 4**, rendu dans un conteneur Node : pas de Node sur l'hôte.
 - **Durée** : environ 1 min, en 1080p30. L'horloge est ralentie (`SPEED = 0.8`) et les fondus durent 16 images.
 - **Données** : celles d'un vrai job, une interview télévisée.
-- **Droits** : seul le texte produit par l'application est montré, jamais le son ni l'image de l'émission. Choix de l'utilisateur pour éviter un problème de droits.
+- **Droits** : seul le texte produit par l'application est montré, jamais le son ni l'image de l'émission, pour éviter tout problème de droits.
 - **Correction de la reconnaissance** : « Alia Salamé » devient « Léa Salamé » à l'export (`scripts/export_demo.py`).
 - **Partie automatisation** : la chaîne iPhone → cloud → n8n → API → agent → CRM est fictive (Acme Industrie, Claire Dumont, Thomas Leroy), et la vidéo le signale.
 
-## 6. Mesures de référence (station, modèles déjà en cache)
+## 6. Mesures de référence (RTX 3090 et i7-12700, modèles déjà en cache)
 
 | Mesure | Valeur |
 |---|---|
@@ -270,6 +273,7 @@ Réglages issus de tests sur des enregistrements réels :
 | Pic de VRAM, transcription (`BATCH_SIZE=16`) | environ 9,9 Go en `large-v3`, 4,4 Go en `large-v3-turbo` (mesuré par la VRAM libre de la carte, ctranslate2 compris) |
 | Pic de VRAM, alignement et diarisation | 0,7 Go et 1,6 Go réellement nécessaires. Sur une carte libre, la diarisation monte à 9,8 Go sur certains fichiers (espace de travail opportuniste, mesure de `torch.cuda.max_memory_allocated`) ; plafonnée à 5,9 Go, elle donne le même résultat |
 | VRAM après un job | environ 280 Mo |
+| Image `cpu`, interview de 7 min 54, `large-v3-turbo` | 4 min 55 (transcription 1 min 50 avec téléchargement du modèle, alignement 27 s, diarisation 2 min 36) |
 
 ## 7. Commandes courantes
 
@@ -278,13 +282,11 @@ Réglages issus de tests sur des enregistrements réels :
 uv sync
 uv run pytest
 
-# Déploiement sur la station (construction locale ; HF_TOKEN du .env pour embarquer pyannote)
-docker compose up -d --build
-
-# Image CPU, construite localement
-docker compose -f compose.cpu.yaml build
+# Construction locale et déploiement (HF_TOKEN du .env pour embarquer pyannote)
+docker compose up -d --build                        # image cuda
+docker compose -f compose.cpu.yaml up -d --build    # image cpu
 docker compose logs -f meeting-scribe
-curl -s http://mon-serveur:8090/api/system | jq    # GPU, Ollama, file d'attente, versions
+curl -s http://localhost:8090/api/system | jq       # GPU, Ollama, file d'attente, versions
 
 # Journal d'un job
 less data/jobs/<id>/pipeline.log
@@ -303,19 +305,15 @@ docker run --rm -u 1000:1000 -e HOME=/tmp -v $PWD:/work meeting-scribe-promo \
 - **`data/` et `models/`** : les créer avant le premier `docker compose up`, sinon Docker les crée en root et le conteneur (uid 1000) ne peut plus y écrire.
 - **Diarisation en échec avec une erreur 401 ou 403 de Hugging Face** : seulement avec une image construite sans le modèle embarqué. Le jeton est absent, ou les conditions de `pyannote/speaker-diarization-community-1` ne sont pas acceptées sur le compte.
 - **onnxruntime 1.30 et le cache Hugging Face 2.0** : un modèle ONNX à données externes (`*.onnx.data`) ne se charge pas depuis le cache HF (« External data path escapes model directory »). Le télécharger dans un dossier ordinaire (`snapshot_download(local_dir=…)`). Rencontré en évaluant Parakeet, sans effet sur le code actuel.
-- **« VRAM libre insuffisante »** : un autre programme occupe la carte, par exemple Whishper, libretranslate ou Open WebUI avec un modèle hors Ollama.
+- **« VRAM libre insuffisante »** : un autre programme occupe la carte, par exemple un autre service de transcription ou un modèle chargé hors Ollama.
 - **YouTube réclame une connexion** : vérifier que yt-dlp est à jour (logs de démarrage), puis fournir les cookies.
 - **Workflows n8n** : ils ont été écrits sans accès à l'instance. Les versions de nœuds peuvent demander un ajustement à l'import.
 - **`/docs`** : la page OpenAPI de FastAPI garde son favicon par défaut et n'a pas le sélecteur de thème.
 - **Tests** : ils forcent `FAKE_PIPELINE=true` et un `DATA_DIR` temporaire ; ne jamais les pointer sur `./data`.
 
-## 9. Reste à faire
+## 9. Pistes
 
-- [x] **Bascule** : Whishper et libretranslate-cuda arrêtés le 01/10/2026, sur demande de l'utilisateur.
-- [ ] En option : reprendre le port 8082, ou supprimer définitivement la pile Whishper. **Uniquement sur feu vert de l'utilisateur.**
-- [ ] Mettre `PUBLIC_BASE_URL=http://mon-serveur:8090` dans `.env` (à faire par l'utilisateur).
-- [ ] Importer les workflows n8n et les régler : identifiants Drive, identifiants de dossiers, activation. Puis test de bout en bout : dépôt Drive → `.md` sur Drive → renommage dans l'interface → `.md` mis à jour.
-- [ ] Tester un enregistrement de 1 h 30 : durée totale, VRAM, taille de contexte du compte rendu.
-- [ ] En option : favicon de la page `/docs` ; musique pour la vidéo, si l'utilisateur fournit une piste.
-- [ ] **Diffusion** (actions de l'utilisateur) : rendre le dépôt public ; ajouter le secret de dépôt `HF_TOKEN` ; lancer le workflow à la main, puis pousser un tag `v0.2.0` ; rendre publics les paquets GHCR (privés par défaut).
-- [ ] Application Windows sans Docker (uv/PyPI ou `.exe`) : plan séparé, sur demande de l'utilisateur. À traiter : annulation sans `os.killpg`, chemins `/data` et `/models`, ffmpeg et Deno.
+- Tester un enregistrement de 1 h 30 : durée totale, VRAM, taille de contexte du compte rendu.
+- Accélérer la diarisation sur CPU, qui représente plus de la moitié du temps de traitement dans l'image `cpu`.
+- Application Windows sans Docker (uv/PyPI ou `.exe`). À traiter : annulation sans `os.killpg`, chemins `/data` et `/models`, ffmpeg et Deno.
+- Favicon et sélecteur de thème de la page `/docs`.
