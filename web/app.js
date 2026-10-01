@@ -213,6 +213,85 @@ function toast(message) {
   setTimeout(() => el.remove(), 2500);
 }
 
+// --- Recherche dans les transcripts -----------------------------------------------------------
+// Mêmes règles que l'API (app/search.py) : casse, accents, ligatures et apostrophes typographiques ignorés.
+
+function foldText(text) {
+  return text.replace(/[’‘]/g, "'").replace(/[œŒ]/g, "oe").replace(/[æÆ]/g, "ae")
+    .normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+// Termes de la requête ; "entre guillemets" ou « entre chevrons » : une expression
+function searchTerms(query) {
+  const terms = [];
+  for (const m of (query || "").matchAll(/"([^"]*)"|«([^»]*)»|(\S+)/g)) {
+    const term = foldText(m[1] ?? m[2] ?? m[3]).split(/\s+/).filter(Boolean).join(" ");
+    if (term && !terms.includes(term)) terms.push(term);
+  }
+  return terms;
+}
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+// Texte échappé, avec les positions [début, fin[ renvoyées par l'API entourées de <mark>
+function highlightText(text, ranges = []) {
+  let html = "", pos = 0;
+  for (const [a, b] of ranges) {
+    html += escapeHtml(text.slice(pos, a)) + `<mark>${escapeHtml(text.slice(a, b))}</mark>`;
+    pos = b;
+  }
+  return html + escapeHtml(text.slice(pos));
+}
+
+// Surligne les termes dans les nœuds texte d'un élément déjà rendu ; renvoie les <mark> créés
+function markTerms(root, terms) {
+  if (!root || !terms.length) return [];
+  const nodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  const marks = [];
+  for (const node of nodes) {
+    const text = node.nodeValue;
+    let folded = "";
+    const origin = [];
+    for (let i = 0; i < text.length; i++) {
+      const f = foldText(text[i]);
+      folded += f;
+      for (let k = 0; k < f.length; k++) origin.push(i);
+    }
+    const ranges = [];
+    for (const term of terms) {
+      for (let at = folded.indexOf(term); at >= 0; at = folded.indexOf(term, at + term.length)) {
+        ranges.push([origin[at], origin[at + term.length - 1] + 1]);
+      }
+    }
+    if (!ranges.length) continue;
+    ranges.sort((x, y) => x[0] - y[0]);
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    for (const [a, b] of ranges) {
+      if (a < pos) continue;  // chevauchement : la première occurrence l'emporte
+      frag.append(text.slice(pos, a));
+      const mark = document.createElement("mark");
+      mark.textContent = text.slice(a, b);
+      frag.append(mark);
+      marks.push(mark);
+      pos = b;
+    }
+    frag.append(text.slice(pos));
+    node.replaceWith(frag);
+  }
+  return marks;
+}
+
+function unmarkTerms(root) {
+  if (!root) return;
+  root.querySelectorAll("mark").forEach((mark) => mark.replaceWith(mark.textContent));
+  root.normalize();
+}
+
 // --- Coquille commune : voyant d'état de l'en-tête et barre latérale des réunions ---------------
 
 const TASK_LABELS = { transcribe: "Transcription en cours", rediarize: "Diarisation en cours", summarize: "Compte rendu en cours" };
@@ -248,6 +327,56 @@ function shell(currentId = null, { sidebar = true } = {}) {
     status: { state: "", text: "", tooltip: "" },
     navOpen: false,
     shellTimer: null,
+    // Recherche de la barre latérale ; searchResults = null : liste des réunions affichée
+    searchQuery: new URLSearchParams(location.search).get("q") || "",
+    searchResults: null,
+    searching: false,
+    searchError: "",
+    searchTimer: null,
+
+    get searchSummary() {
+      if (this.searchError) return this.searchError;
+      if (this.searching && !this.searchResults) return "Recherche…";
+      const r = this.searchResults;
+      if (!r || !r.items.length) return "Aucun résultat";
+      const passages = r.total_hits > 1 ? `${r.total_hits} passages` : r.total_hits ? "1 passage" : "titre";
+      const meetings = r.items.length > 1 ? `${r.items.length} réunions` : "1 réunion";
+      return `${passages} · ${meetings}${r.truncated ? " (et plus)" : ""}`;
+    },
+
+    searchInput() {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = setTimeout(() => this.runSearch(), 300);
+    },
+
+    async runSearch() {
+      const q = this.searchQuery.trim();
+      this.searchError = "";
+      if (q.length < 2) { this.searchResults = null; return; }
+      this.searching = true;
+      try {
+        const data = await api(`search?${new URLSearchParams({ q, per_job: 3 })}`);
+        if (q === this.searchQuery.trim()) this.searchResults = data;  // réponse d'une frappe plus ancienne : ignorée
+      } catch (e) {
+        this.searchError = e.message;
+      } finally {
+        this.searching = false;
+      }
+    },
+
+    clearSearch() {
+      clearTimeout(this.searchTimer);
+      this.searchQuery = "";
+      this.searchResults = null;
+      this.searchError = "";
+    },
+
+    // Lien vers la réunion, le transcript ouvert sur le passage et les termes surlignés
+    searchLink(item, hit = null) {
+      const params = new URLSearchParams({ id: item.job_id, q: this.searchQuery.trim() });
+      if (hit) params.set("t", hit.start);
+      return `job.html?${params}`;
+    },
 
     async refreshShell() {
       clearTimeout(this.shellTimer);
@@ -276,6 +405,7 @@ function withShell(page, currentId = null, options = {}) {
   Object.defineProperties(data, Object.getOwnPropertyDescriptors(shell(currentId, options)));
   Object.defineProperties(data, Object.getOwnPropertyDescriptors(page));
   data.init = async function () {
+    if (this.sidebar && this.searchQuery) this.runSearch();  // arrivée depuis un résultat : résultats conservés
     await this.refreshShell();
     if (page.init) await page.init.call(this);
   };

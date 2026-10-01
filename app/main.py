@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__, callbacks, db
-from .api import jobs, prompts, settings, speakers, summaries, system
+from .api import jobs, prompts, search, settings, speakers, summaries, system
 from .auth import require_token
 from .config import get_settings
 from .llm.summarize import run_summary_task
@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
-    for module in (jobs, speakers, summaries, prompts, settings, system):
+    for module in (jobs, speakers, summaries, prompts, settings, search, system):
         api.include_router(module.router)
     app.include_router(api)
 

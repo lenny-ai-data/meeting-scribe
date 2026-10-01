@@ -23,7 +23,7 @@ Usage visé :
 - **manuel** : l'interface web ;
 - **automatique** : dossier Drive → n8n → API → `.md` renvoyé sur Drive → agent ou CRM en aval.
 
-Le service est volontairement **transitoire** : il transcrit et synthétise, puis la connaissance part en aval (CRM, base de connaissances, agent). Pas d'historique consultable, de recherche entre réunions ni de chat.
+Le service est volontairement **transitoire** : il transcrit et synthétise, puis la connaissance part en aval (CRM, base de connaissances, agent). Pas de chat ni de base de connaissances. Seule exception, décidée le 01/10/2026 : une recherche légère dans les transcripts conservés, pour retrouver une réunion ou un passage (voir § 5, Recherche).
 
 ## 2. Règles de travail (à respecter)
 
@@ -102,10 +102,11 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 | `app/speakers.py` | Libellés S1…, temps de parole, choix des extraits, `finalize` |
 | `app/render.py` | Construction des tours et rendu Markdown ; titre, frontmatter, nom de fichier suggéré |
 | `app/transcript.py` | Chargement des segments, `transcript_markdown` |
+| `app/search.py` | Recherche dans les transcripts terminés (`GET /api/search`), sans index |
 | `app/llm/` | `base` (fournisseur, `num_ctx`), `config` (réglages effectifs : base puis `.env`), `ollama`, `openai_compat`, `summarize` (tâche), `prompts` (prompt système par défaut) |
 | `app/callbacks.py` | Webhooks sortants |
 | `web/` | Interface : `index.html`, `job.html`, `settings.html`, `app.js`, `style.css`, `vendor/` (Alpine.js, marked, DOMPurify), logos et favicons |
-| `tests/` | pytest : jobs, GPU, intervenants et rendu, comptes rendus, intégrations (YouTube, callbacks, auth) |
+| `tests/` | pytest : jobs, GPU, intervenants et rendu, comptes rendus, recherche, intégrations (YouTube, callbacks, auth) |
 | `docs/branding/` | Logo d'origine et `make_logo.py`, qui génère tous les SVG, ICO et PNG de `web/` |
 | `docs/technique.md` | Documentation technique destinée aux utilisateurs : configuration, profils, API, exploitation, dépannage |
 
@@ -284,6 +285,14 @@ Réglages issus de tests sur des enregistrements réels :
   - 4 tentatives au total (relances après 5, 15 puis 45 s) ; le résultat est visible dans le champ `callback_status` ;
   - liens absolus si `PUBLIC_BASE_URL` est défini.
 - **Auth** : `API_TOKEN` est vide par défaut, le service étant pensé pour un réseau local ; le définir dès que le service est exposé au-delà. `/api/health` reste toujours ouvert pour le healthcheck.
+
+### Recherche (`app/search.py`)
+
+- **Sans index** : à chaque requête, les transcripts terminés sont relus. Le découpage en unités (`build_units`) est gardé en mémoire (`lru_cache`, clé : chemin et `mtime` de `result.json`, que `rediarize` réécrit). Mesuré : 10 ms pour 5 réunions, 33 ms au premier passage. Pas de table FTS5 à tenir à jour lors des renommages, nouvelles diarisations et suppressions. À revoir au-delà de quelques centaines de réunions.
+- **Correspondance** : un paragraphe du transcript (celui du rendu Markdown, avec son horodatage) contient tous les termes, comme sous-chaînes (« europe » trouve « européen »). Casse, accents, ligatures (œ, æ) et apostrophes typographiques sont ignorés ; une expression entre guillemets ou chevrons est cherchée telle quelle. Le titre compte aussi (`title_highlights`). Les noms d'intervenants ne sont pas cherchés : une recherche sur un nom renverrait tout ce qu'il a dit.
+- **Réponse** : par réunion, le nombre de passages et les `per_job` premiers, avec horodatage, nom courant de l'intervenant, extrait et positions `[début, fin[` des termes dans l'extrait. Les positions plutôt que du HTML : n8n et les agents reçoivent du texte brut.
+- **Interface** : champ dans la barre latérale (les résultats remplacent la liste des réunions tant qu'il est rempli). Un résultat ouvre `job.html?id=…&q=…&t=…` : la section Transcript s'ouvre, les termes sont surlignés dans le DOM (`markTerms`, mêmes règles de repli que l'API, dans `app.js`) et la page défile jusqu'à la première occurrence du passage visé.
+- Les comptes rendus ne sont pas cherchés.
 
 ### Interface (`web/`)
 

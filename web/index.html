@@ -90,6 +90,29 @@
   <div class="shell">
     <aside class="sidebar" :class="{ open: navOpen }">
       <a class="btn primary new" href="./">+ Nouvelle transcription</a>
+      <div class="side-search">
+        <input type="search" placeholder="Rechercher dans les transcripts" aria-label="Rechercher dans les transcripts"
+               x-model="searchQuery" @input="searchInput()" @keydown.enter.prevent="runSearch()" @keydown.escape="clearSearch()"
+               title="Tous les mots dans un même passage, sans tenir compte des accents ; &quot;entre guillemets&quot; : expression exacte">
+      </div>
+      <template x-if="searchResults || searching || searchError">
+        <div class="search-results">
+          <div class="side-title"><span x-text="searchSummary"></span></div>
+          <template x-for="r in searchResults?.items || []" :key="r.job_id">
+            <div class="search-item" :class="{ current: r.job_id === currentId }">
+              <a class="s-title" :href="searchLink(r)" :title="r.title" x-html="highlightText(r.title, r.title_highlights)"></a>
+              <span class="m-meta" x-text="`${fmtDate(r.meeting_date)} · ${r.hit_count > 1 ? r.hit_count + ' passages' : r.hit_count ? '1 passage' : 'titre'}`"></span>
+              <template x-for="h in r.hits" :key="h.start">
+                <a class="s-hit" :href="searchLink(r, h)">
+                  <span class="s-where"><span class="s-ts" x-text="h.timestamp"></span> <span x-text="h.speaker"></span></span>
+                  <span class="s-text" x-html="highlightText(h.text, h.highlights)"></span>
+                </a>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+      <div x-show="!(searchResults || searching || searchError)">
       <div class="side-title">Réunions <span x-show="meetingsTotal" x-text="`(${meetingsTotal})`"></span></div>
       <p class="hint" x-show="!meetings.length" style="padding:0 8px">Aucune transcription pour l’instant.</p>
       <template x-for="m in meetings" :key="m.id">
@@ -106,6 +129,7 @@
           </span>
         </a>
       </template>
+      </div>
     </aside>
     <div class="sidebar-overlay" :class="{ open: navOpen }" @click="navOpen = false"></div>
 

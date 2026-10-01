@@ -207,6 +207,7 @@ La documentation interactive (OpenAPI) est servie sur `/docs`.
 | `POST /api/jobs/{id}/rediarize` | `{"num_speakers": 3}` |
 | `GET /api/jobs/{id}/transcript.md` / `.json` | Transcript (noms à jour) |
 | `GET /api/jobs/{id}/timeline?bins=240` | Frise : passages de parole par intervenant et enveloppe d'amplitude de l'audio |
+| `GET /api/search?q=…&per_job=3&limit=50` | Recherche dans les transcripts terminés : tous les termes dans un même paragraphe, sans tenir compte de la casse ni des accents ; `"entre guillemets"` pour une expression exacte. Par réunion : nombre de passages, puis horodatage, intervenant, extrait et positions des termes (`highlights`) |
 | `POST /api/jobs/{id}/summaries` | `{"meeting_prompt": "…", "provider": "ollama" \| "openai", "prompt_id": "…", "think": false}` |
 | `GET /api/summaries/{id}.md` | Compte rendu |
 | `PATCH /api/summaries/{id}` | `{"content": "…"}` : retoucher le texte d'un compte rendu terminé |
