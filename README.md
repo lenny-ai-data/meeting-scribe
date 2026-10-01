@@ -4,6 +4,8 @@
 
 Service auto-hébergé de transcription de réunions, en français ou en anglais.
 
+![Page d’une réunion : frise colorée par intervenant, extraits à écouter pour nommer chaque voix](docs/images/reunion.png)
+
 ## Objectif
 
 Déposer l'enregistrement d'une réunion et obtenir :
@@ -60,6 +62,8 @@ Le premier job télécharge les modèles de transcription (de 0,5 à 4 Go selon 
 **Comptes rendus** : choisir le modèle de langage dans *Réglages*. Pour Ollama sur la même machine, il doit écouter sur toutes les interfaces (`OLLAMA_HOST=0.0.0.0`) ; voir [Comptes rendus](docs/technique.md#comptes-rendus).
 
 ## Utilisation
+
+![Formulaire « Nouvelle transcription » : fichier ou URL YouTube, titre, date, vocabulaire, profil de performance, langue et nombre d’intervenants](docs/images/nouvelle-transcription.png)
 
 1. **Déposer** un fichier ou coller une URL YouTube, puis régler les options : titre, date, vocabulaire (noms propres, jargon), profil (de « Très rapide » à « Très précis »), langue et nombre d'intervenants. Indiquer ce nombre améliore nettement les profils rapides.
 2. **Suivre** l'avancement : les réunions sont listées à gauche. Le voyant de l'en-tête indique l'état du service : vert prêt, doré occupé, rouge en panne (détail au survol).
