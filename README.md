@@ -6,6 +6,7 @@ Service auto-hébergé de transcription de réunions, en français ou en anglais
 
 - **Entrées** : fichiers audio ou vidéo (`.m4a` d'iPhone, `.mp4`…) ou URL YouTube.
 - **Chaîne de traitement** : [WhisperX](https://github.com/m-bain/whisperX) 3.8.6, c'est-à-dire faster-whisper `large-v3` ou `large-v3-turbo`, alignement mot à mot, puis diarisation avec `pyannote/speaker-diarization-community-1`.
+- **Deux images Docker** : `cuda` pour une carte NVIDIA, `cpu` pour un PC ou un Mac sans GPU. Le modèle de diarisation y est embarqué : aucun compte Hugging Face n'est nécessaire.
 - **Intervenants** : ils sont séparés automatiquement, puis nommés dans l'interface après écoute de courts extraits. Aucune empreinte vocale n'est conservée.
 - **Comptes rendus** : [Ollama](https://ollama.com) en local, ou n'importe quelle API compatible OpenAI (OpenAI, Mistral, OpenRouter…).
 - **Toute la logique est dans l'API** (`/api`, documentation interactive sur `/docs`). L'interface web n'en est qu'un client : n8n, un script ou un agent peuvent faire exactement la même chose.
@@ -17,7 +18,7 @@ Né pour remplacer [Whishper](https://github.com/pluja/whishper), qui n'est plus
 
 - [Fonctionnement](#fonctionnement)
 - [Prérequis](#prérequis)
-- [Installation minimale](#installation-minimale)
+- [Installation](#installation)
 - [Configuration](#configuration)
 - [Utilisation](#utilisation)
 - [Automatisation](#automatisation)
@@ -26,6 +27,7 @@ Né pour remplacer [Whishper](https://github.com/pluja/whishper), qui n'est plus
 - [Exploitation](#exploitation)
 - [Dépannage](#dépannage)
 - [Développement](#développement)
+- [Licence](#licence)
 
 ## Fonctionnement
 
@@ -74,54 +76,81 @@ Un seul conteneur suffit. Ollama, l'API distante et n8n sont facultatifs.
 
 ## Prérequis
 
-| | Minimum | Remarque |
-|---|---|---|
-| Système | Linux x86_64 | Développé et testé sous Ubuntu 24.04 |
-| GPU | NVIDIA, 12 Go de VRAM en `large-v3`, 8 Go en `large-v3-turbo` | Pics mesurés : environ 10 Go en `large-v3`, 4,5 Go en `large-v3-turbo`. Testé sur une RTX 3090 (24 Go). Sans GPU, voir l'image CPU |
-| Pilote NVIDIA | 570 ou plus récent | L'image embarque CUDA 12.8 via les roues de PyTorch : rien à installer côté CUDA |
-| Docker | Docker Engine et Compose v2 | Avec le [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) |
-| Disque | environ 20 Go | Image : environ 13,5 Go. Modèles : environ 5 Go, plus les fichiers des réunions |
-| Hugging Face | un compte gratuit | Pour télécharger le modèle de diarisation (voir ci-dessous) |
-| Ollama | facultatif | Seulement pour les comptes rendus en local |
+Deux images, selon la machine :
 
-Vérifier que Docker voit le GPU :
+| | Image `cuda` | Image `cpu` |
+|---|---|---|
+| Pour | PC ou serveur avec carte NVIDIA | PC sans carte NVIDIA, Mac Apple Silicon |
+| Système | Linux x86_64, ou Windows 10/11 avec Docker Desktop (WSL2) | Linux, Windows ou macOS (x86_64 ou arm64) |
+| GPU | NVIDIA, 12 Go de VRAM en `large-v3`, 8 Go en `large-v3-turbo` ; pilote 570 ou plus récent | aucun |
+| Docker | Docker Engine et Compose v2, avec le [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) sous Linux | Docker Engine et Compose v2, ou Docker Desktop |
+| Mémoire vive | 16 Go | 16 Go |
+| Disque | environ 20 Go (image 13,5 Go, modèles 5 Go) | environ 8 Go (image 4,5 Go, modèles 3 Go) |
+| Vitesse | une interview de 8 min en 40 s (`large-v3-turbo`) à 60 s (`large-v3`) sur une RTX 3090 | environ 0,6 à 0,7 × la durée de la réunion (`large-v3-turbo`, Intel i7-12700) : 5 min pour 8 min d'audio, environ 1 h pour 1 h 30 |
+| Ollama | facultatif, pour les comptes rendus en local | idem, ou une API distante |
+
+Pics de VRAM mesurés : environ 10 Go en `large-v3`, 4,5 Go en `large-v3-turbo`. L'image `cuda` embarque CUDA 12.8 par les roues de PyTorch : rien à installer côté CUDA.
+
+Vérifier que Docker voit le GPU (image `cuda`) :
 
 ```bash
 docker run --rm --gpus all ubuntu nvidia-smi
 ```
 
-### Jeton Hugging Face
+## Installation
 
-Le modèle de diarisation est en accès restreint :
+### Avec l'image publiée
 
-1. Se connecter sur Hugging Face et accepter les conditions de [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1).
-2. Créer un jeton de type *Read* dans [Settings → Access Tokens](https://huggingface.co/settings/tokens).
-
-Sans ce jeton, ou si les conditions ne sont pas acceptées, la diarisation échoue (erreur 401 ou 403).
-
-## Installation minimale
+Il suffit d'un dossier contenant le fichier Compose et le `.env` :
 
 ```bash
-git clone https://github.com/lenny-ai-data/meeting-scribe.git
-cd meeting-scribe
+mkdir meeting-scribe && cd meeting-scribe
+BASE=https://raw.githubusercontent.com/lenny-ai-data/meeting-scribe/main
+curl -fsSLO $BASE/compose.yaml              # carte NVIDIA
+curl -fsSLO $BASE/compose.cpu.yaml          # ou : sans GPU
+curl -fsSL -o .env $BASE/.env.example       # tout est facultatif
 
-cp .env.example .env          # puis renseigner HF_TOKEN : c'est la seule variable obligatoire
-mkdir -p data models          # avant le premier démarrage, sinon Docker les crée en root
-docker compose up -d --build  # la première construction prend plusieurs minutes
+mkdir -p data models                        # avant le premier démarrage, sinon Docker les crée en root
+docker compose up -d                        # carte NVIDIA
+docker compose -f compose.cpu.yaml up -d    # ou : sans GPU
 ```
 
-Ouvrir ensuite `http://<adresse-du-serveur>:8090` : le voyant en haut de page doit être vert. La documentation de l'API est sur `http://<adresse-du-serveur>:8090/docs`.
+Ouvrir ensuite `http://localhost:8090`, ou `http://<adresse-du-serveur>:8090` depuis un autre poste : le voyant en haut de page doit être vert. Choisir enfin le modèle de langage des comptes rendus dans *Réglages* (voir [Comptes rendus](#comptes-rendus)). La documentation de l'API est sur `/docs`.
 
-Pour vérifier depuis le serveur :
+Pour vérifier en ligne de commande :
 
 ```bash
 curl -s http://localhost:8090/api/system | jq .status
 # {"state": "ready", "problems": [], "warnings": [...]}
 ```
 
-Au premier job, les modèles sont téléchargés dans `./models` (environ 3 Go pour `large-v3`, 1,6 Go pour `large-v3-turbo`, plus l'alignement et pyannote) : ce premier job est donc plus long que les suivants.
+Au premier job, les modèles de transcription et d'alignement sont téléchargés dans `./models` (environ 3 Go pour `large-v3`, 1,6 Go pour `large-v3-turbo`, plus 1,2 Go d'alignement pour le français) : ce premier job est donc plus long que les suivants.
 
-> **Utilisateur de l'hôte** : le conteneur tourne avec l'uid 1000, l'utilisateur par défaut d'Ubuntu. Si `id -u` renvoie une autre valeur, donner les dossiers à l'uid 1000 : `sudo chown -R 1000:1000 data models`.
+**Windows** : installer [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) avec le moteur WSL2, puis lancer les mêmes commandes dans PowerShell (`curl.exe` au lieu de `curl`, `mkdir data, models`). Avec une carte NVIDIA, un pilote récent suffit : Docker Desktop transmet le GPU aux conteneurs.
+
+**Mac** : Docker Desktop, image `cpu` (le GPU des Mac n'est pas accessible aux conteneurs).
+
+> **Utilisateur de l'hôte (Linux)** : le conteneur tourne avec l'uid 1000, l'utilisateur par défaut d'Ubuntu. Si `id -u` renvoie une autre valeur, donner les dossiers à l'uid 1000 : `sudo chown -R 1000:1000 data models`.
+
+### Depuis le dépôt (construction locale)
+
+```bash
+git clone https://github.com/lenny-ai-data/meeting-scribe.git
+cd meeting-scribe
+cp .env.example .env
+mkdir -p data models
+docker compose up -d --build                        # image cuda
+docker compose -f compose.cpu.yaml up -d --build    # ou : image cpu
+```
+
+Le modèle de diarisation n'est embarqué à la construction que si `HF_TOKEN` est renseigné dans le `.env` (voir ci-dessous) ; sinon, ce même jeton sera exigé à l'exécution.
+
+### Jeton Hugging Face (facultatif)
+
+Inutile avec les images publiées. Il ne sert qu'à construire soi-même une image avec le modèle de diarisation, ou à utiliser un autre modèle pyannote :
+
+1. Se connecter sur Hugging Face et accepter les conditions de [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1).
+2. Créer un jeton de type *Read* dans [Settings → Access Tokens](https://huggingface.co/settings/tokens), puis le mettre dans `HF_TOKEN`.
 
 ## Configuration
 
@@ -187,9 +216,7 @@ Le prompt système des comptes rendus se modifie dans *Réglages* ; un prompt pa
 
 ### Sans GPU
 
-Possible, mais une réunion d'une heure peut alors prendre plusieurs heures :
-1. supprimer le bloc `deploy:` de [compose.yaml](compose.yaml), sinon Docker refuse de démarrer sans runtime NVIDIA ;
-2. mettre `DEFAULT_DEVICE=cpu` dans `.env`.
+Utiliser l'image `cpu` ([compose.cpu.yaml](compose.cpu.yaml)) : `large-v3-turbo` en int8 sur le processeur, environ 0,6 à 0,7 × la durée de la réunion, dont plus de la moitié pour la diarisation. `large-v3` reste possible, mais nettement plus lent. Pour des comptes rendus sans GPU, préférer une API distante, ou un Ollama sur une autre machine du réseau.
 
 ### YouTube
 
@@ -292,9 +319,9 @@ Les frontières des tours sont recalées sur les fins de phrase, et la ponctuati
   - `jobs/<id>/` : pour chaque job, la source, `audio.wav`, les résultats JSON, les extraits et `pipeline.log`, le journal complet du traitement ;
   - `config/` : cookies YouTube éventuels.
 - **Sauvegarde** : le dossier `./data` suffit. `./models` n'est qu'un cache, retéléchargeable.
-- **Mise à jour** : `git pull && docker compose up -d --build`.
+- **Mise à jour** : `docker compose pull && docker compose up -d` avec l'image publiée (ajouter `-f compose.cpu.yaml` pour l'image `cpu`), ou `git pull && docker compose up -d --build` depuis le dépôt.
 - **Journaux** : `docker compose logs -f meeting-scribe`, et `data/jobs/<id>/pipeline.log` pour un job précis.
-- **Performances** mesurées sur une RTX 3090, modèles déjà téléchargés : environ 40 s en `large-v3-turbo` et 60 s en `large-v3` pour une interview de 8 min.
+- **Performances** pour une interview de 8 min, modèles déjà téléchargés : environ 40 s en `large-v3-turbo` et 60 s en `large-v3` sur une RTX 3090 ; environ 5 min en `large-v3-turbo` sur CPU (i7-12700).
 - **VRAM** : le pic est atteint pendant la transcription, environ 10 Go en `large-v3` et 4,5 Go en `large-v3-turbo` (`BATCH_SIZE=16`). La diarisation n'a besoin que d'environ 1,6 Go, même si elle occupe davantage quand la carte est libre. Toute la mémoire est rendue à la fin du job, car chaque traitement tourne dans un sous-processus.
 - **Redémarrage** : une tâche interrompue est relancée une fois, puis marquée en échec.
 
@@ -302,10 +329,12 @@ Les frontières des tours sont recalées sur les fins de phrase, et la ponctuati
 
 | Symptôme | Cause probable |
 |---|---|
-| Voyant rouge, « HF_TOKEN manquant » | `HF_TOKEN` absent du `.env`, ou conteneur non redémarré après la modification |
-| Voyant rouge, « GPU introuvable » | NVIDIA Container Toolkit absent ou mal configuré : tester `docker run --rm --gpus all ubuntu nvidia-smi` |
+| Voyant rouge, « HF_TOKEN manquant » | Image construite sans le modèle de diarisation : renseigner `HF_TOKEN` dans le `.env`, ou utiliser l'image publiée |
+| Voyant rouge, « GPU introuvable » | NVIDIA Container Toolkit absent ou mal configuré : tester `docker run --rm --gpus all ubuntu nvidia-smi`. Sans carte NVIDIA, utiliser l'image `cpu` |
+| `could not select device driver "nvidia"` au démarrage | Pas de runtime NVIDIA : utiliser `compose.cpu.yaml` |
 | Diarisation en échec, erreur 401 ou 403 | Conditions de `pyannote/speaker-diarization-community-1` non acceptées sur le compte du jeton |
 | « VRAM libre insuffisante » | Un autre programme occupe la carte (autre service de transcription, modèle chargé hors Ollama…) |
+| « Carte de N Go : trop petite pour ce modèle » | Choisir `large-v3-turbo`, ou le CPU |
 | `Permission denied` sur `/data` ou `/models` | Dossiers créés en root ou par un autre uid : `sudo chown -R 1000:1000 data models` |
 | « Ollama injoignable » | Ollama arrêté, ou n'écoute que sur `127.0.0.1` (voir [Comptes rendus](#comptes-rendus)) |
 | YouTube réclame une connexion | Vérifier la mise à jour de yt-dlp dans les journaux de démarrage, puis fournir les cookies |
@@ -318,7 +347,8 @@ uv sync                  # environnement local, sans la pile GPU
 uv run pytest            # tests sans GPU : moteur factice (FAKE_PIPELINE=true)
 ```
 
-- Les dépendances sont gérées uniquement avec [uv](https://docs.astral.sh/uv/) ; la pile GPU (`uv sync --extra gpu`) n'est installée que dans l'image Docker.
+- Les dépendances sont gérées uniquement avec [uv](https://docs.astral.sh/uv/) ; la pile de transcription n'est installée que dans l'image Docker : `uv sync --extra cuda` (torch CUDA) ou `--extra cpu` (torch CPU), deux extras incompatibles entre eux.
+- Images : `docker build --build-arg FLAVOR=cpu --build-arg DEFAULT_DEVICE=cpu --build-arg DEFAULT_MODEL=large-v3-turbo --secret id=hf_token,env=HF_TOKEN .` ; publication sur GHCR par [.github/workflows/docker.yml](.github/workflows/docker.yml) à chaque tag `vX.Y.Z`.
 - Organisation du code :
   - `app/api/` : routes ;
   - `app/worker/` : file de tâches, sous-processus du pipeline, moteur WhisperX, libération du GPU ;
@@ -326,3 +356,7 @@ uv run pytest            # tests sans GPU : moteur factice (FAKE_PIPELINE=true)
   - `app/llm/` : les comptes rendus ;
   - `web/` : l'interface (Alpine.js, sans étape de build).
 - L'architecture et les choix de conception sont détaillés dans [AGENTS.md](AGENTS.md).
+
+## Licence
+
+Code sous licence [MIT](LICENSE). Les images embarquent le modèle `pyannote/speaker-diarization-community-1` (CC-BY-4.0, © pyannote) et des composants sous leurs propres licences : voir [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
