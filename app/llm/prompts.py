@@ -16,6 +16,11 @@ Objet de la réunion, date, durée, en une ou deux phrases.
 
 ## Participants
 Liste des intervenants (tels que nommés dans la transcription).
+Pour chaque intervenant désigné par un libellé générique (« Intervenant N » ou « Speaker N »), propose un nom \
+seulement si la transcription en donne un indice explicite : il se présente, un autre l'interpelle par son nom, \
+il est cité comme interlocuteur… Cite l'indice et son horodatage, par exemple :
+- Intervenant 2 → probablement Claire Dumont (« Merci Claire, tu nous présentes… » [00:03:12])
+Sans indice explicite, écris « non identifié ».
 
 ## Points abordés
 Les sujets discutés, dans l'ordre, avec pour chacun un résumé concis des échanges et des positions exprimées.
@@ -32,5 +37,7 @@ Les points restés en suspens ou à approfondir.
 Règles :
 - Reste fidèle à la transcription ; ne rajoute aucune information extérieure.
 - Sois synthétique : pas de paraphrase ligne à ligne.
+- N'invente jamais le nom d'un intervenant. Hors de la section Participants, désigne toujours un intervenant non \
+nommé par son libellé (« Intervenant N »), même si tu lui as proposé un nom.
 - Si une consigne propre à la réunion est fournie, elle prime sur ce modèle.
 """
