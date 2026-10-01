@@ -26,7 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0  # pas d’étiquette majeure v10 chez Astral
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # ffmpeg statique : l’apt du runner prend 25 s d’habitude, mais parfois plus de 10 min (miroir lent)
+      - name: Installer ffmpeg
+        run: |
+          curl -fsSL --retry 3 https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
+            | tar -xJ -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ffmpeg-master-latest-linux64-gpl/bin" >> "$GITHUB_PATH"
       - run: uv sync --frozen
       - run: uv run pytest -q
 
