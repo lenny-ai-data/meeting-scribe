@@ -16,7 +16,7 @@
   /* Voyants : teintes franches, lisibles d'un coup d'œil */
   --led-ok: #1e9e4f;
   --led-busy: #d99200;
-  --led-err: #bd2217;
+  --led-err: #d97a72;
   --led-idle: #b9b6cc;
   /* Halos du fond (couleurs de la vidéo de présentation) */
   --halo-1: #3b2fd6;
@@ -51,7 +51,7 @@
     --err: #f97066;
     --led-ok: #2fbf68;
     --led-busy: #f2a900;
-    --led-err: #e0342a;
+    --led-err: #bd2217;
     --led-idle: #4a4760;
     --halo-opacity: .30;
     --dots: rgb(255 255 255 / 6%);
@@ -79,7 +79,7 @@
   --err: #f97066;
   --led-ok: #2fbf68;
   --led-busy: #f2a900;
-  --led-err: #e0342a;
+  --led-err: #bd2217;
   --led-idle: #4a4760;
   --halo-opacity: .30;
   --dots: rgb(255 255 255 / 6%);
