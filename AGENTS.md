@@ -78,6 +78,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 - `aligned.json`, conservé pour relancer la diarisation seule ;
 - les résultats de diarisation et d'attribution ;
 - `samples/` (extraits MP3) ;
+- `waveform.json`, l'enveloppe d'amplitude de la frise, calculée à la première demande ;
 - `pipeline.log`, le journal complet du sous-processus.
 
 ### Carte du code
@@ -163,7 +164,11 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
   - MP3 64 kb/s mono, lisible sur Safari iOS ;
   - accompagnés du texte prononcé.
 - **Fusion** : donner le même nom à deux libellés les fusionne ; les tours consécutifs sont regroupés au rendu.
-- **Pas de reconnaissance vocale.** L'utilisateur a explicitement refusé une bibliothèque d'empreintes vocales : l'identification se fait à la main dans l'interface, aidée seulement par l'autocomplétion des noms déjà utilisés (`/api/people`).
+- **Pas de reconnaissance vocale ni de base d'intervenants.** L'utilisateur a explicitement refusé une bibliothèque d'empreintes vocales : l'identification se fait à la main dans l'interface. La seule suggestion proposée est `OWNER_NAME` (l'utilisateur lui-même). `/api/people` existe toujours, mais l'interface ne s'en sert plus, à la demande de l'utilisateur.
+- **Frise** (`GET /api/jobs/{id}/timeline`, `transcript.speaker_blocks`) :
+  - les passages viennent de `build_units`, donc avec le même recalage que le transcript ; deux passages d'un même intervenant séparés de moins d'1 s sont fusionnés ;
+  - l'enveloppe est un RMS par intervalle, lu par blocs dans `audio.wav` (jamais chargé en entier), compressé en puissance 0,6 pour que les passages calmes restent visibles ;
+  - dans l'interface, deux intervenants de même nom partagent la même couleur.
 
 ### Transcript Markdown (`app/render.py`)
 
@@ -189,6 +194,7 @@ Réglages issus de tests sur des enregistrements réels :
   - `system` : le prompt système stocké, modifiable dans *Réglages* ; un prompt par défaut en français est créé au premier démarrage ;
   - `user` : le prompt propre à la réunion, puis le transcript complet avec les noms.
 - **Historique** : tous les comptes rendus sont conservés ; le dernier est affiché.
+- **Retouche** : `PATCH /api/summaries/{id}` remplace le texte (`content`) d'un compte rendu terminé. Le `.md` téléchargé sert ensuite la version retouchée ; l'original n'est pas conservé.
 
 ### YouTube (`app/youtube.py`)
 
@@ -213,6 +219,14 @@ Réglages issus de tests sur des enregistrements réels :
 ### Interface (`web/`)
 
 - **Sans étape de build** : Alpine.js, marked et DOMPurify sont stockés dans `web/vendor/`, sans CDN.
+- **Coquille commune** (`app.js`) : `withShell(page)` fusionne la barre latérale des réunions et le voyant d'état avec les données propres à la page. Les descripteurs sont copiés, pour que les accesseurs `get` restent calculés. Le balisage de l'en-tête et de la barre latérale est dupliqué dans les trois pages.
+- **Voyant d'état** : l'état vient de l'API (`/api/system` → `status`) :
+  - `error` (rouge) si `HF_TOKEN` manque ou si le GPU est introuvable alors que `DEFAULT_DEVICE=cuda` ;
+  - `busy` (doré, pulsation lente) pendant une tâche ;
+  - `ready` (vert) sinon.
+  - Ollama injoignable n'est qu'un avertissement (`warnings`), affiché dans l'infobulle.
+- **Fond** : trois halos aux couleurs de la vidéo de présentation, plus une trame de points, insérés par `app.js` (`.backdrop`). Ils dérivent lentement, sauf si `prefers-reduced-motion` est actif. Leur opacité est plus faible en clair. Les cartes sont translucides (`backdrop-filter`).
+- **Page d'une réunion** : sections dépliantes (`<details class="card section">`) dans cet ordre : Intervenants, Compte rendu, puis Transcript, replié par défaut. Ce choix de l'utilisateur tient au fait que le transcript n'est pas le cœur de l'usage.
 - **Thème** : Auto, Clair ou Sombre, choisi dans l'en-tête et mémorisé dans `localStorage` (`meeting-scribe.theme`).
   - **Mécanisme** : attribut `data-theme` sur `<html>`. Les variables sombres sont définies deux fois : sous `@media (prefers-color-scheme: dark) :root:not([data-theme="light"])` et sous `:root[data-theme="dark"]`.
   - **Logo** : un SVG chargé en `<img>` ne voit que le thème du système. D'où les variantes figées `logo-mark-light.svg` et `logo-mark-dark.svg`, choisies par `app.js` quand le thème est forcé.
