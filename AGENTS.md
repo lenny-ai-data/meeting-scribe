@@ -132,6 +132,11 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 
 ### Image Docker
 
+- **Deux variantes, un seul Dockerfile** (`ARG FLAVOR`) : `cuda` (amd64, torch cu128, 13,5 Go) et `cpu` (amd64 et arm64, torch CPU, 4,5 Go, `DEFAULT_DEVICE=cpu`, `DEFAULT_MODEL=large-v3-turbo`). Extras uv `cuda` et `cpu` (mêmes noms que les variantes) déclarés en conflit ; torch vient de l'index correspondant.
+  - Compose : `compose.yaml` (cuda) et `compose.cpu.yaml` (sans réservation de GPU). Tous deux portent `image: ghcr.io/lenny-ai-data/meeting-scribe:{cuda,cpu}` et `build:` pour la construction locale.
+  - Publication sur GHCR par `.github/workflows/docker.yml` à chaque tag `v*` : tests, image cuda, image cpu construite nativement par architecture (runner `ubuntu-24.04-arm`) puis manifeste commun. Étiquettes `:cuda`, `:cpu`, `:X.Y.Z-cuda`, `:X.Y.Z-cpu` ; un lancement manuel publie seulement `<branche>-cuda` et `<branche>-cpu`.
+  - **Modèle de diarisation embarqué** par un secret BuildKit `hf_token` (le `HF_TOKEN` du `.env` via `secrets: environment` dans Compose ; le secret de dépôt `HF_TOKEN` en CI). Le jeton ne reste pas dans l'image (vérifié dans l'historique et le système de fichiers).
+  - Dans `.env.example`, `DEFAULT_MODEL` et `DEFAULT_DEVICE` sont commentés : une valeur, même vide, dans le `.env` écraserait celle de l'image.
 - **Base `ubuntu:24.04` plutôt que `nvidia/cuda`.** CUDA, cuDNN et cuBLAS viennent des roues pip de torch (index `pytorch-cu128`).
   - `LD_LIBRARY_PATH` pointe sur `site-packages/nvidia/{cudnn,cublas}/lib` pour que ctranslate2, utilisé par faster-whisper, les trouve.
 - **`libpython3.12t64`** : torchcodec, utilisé par pyannote 4, en a besoin. Sans elle, avertissement puis échec du décodage audio.
@@ -229,7 +234,7 @@ Réglages issus de tests sur des enregistrements réels :
 - **Sans étape de build** : Alpine.js, marked et DOMPurify sont stockés dans `web/vendor/`, sans CDN.
 - **Coquille commune** (`app.js`) : `withShell(page)` fusionne la barre latérale des réunions et le voyant d'état avec les données propres à la page. Les descripteurs sont copiés, pour que les accesseurs `get` restent calculés. Le balisage de l'en-tête et de la barre latérale est dupliqué dans les trois pages.
 - **Voyant d'état** : l'état vient de l'API (`/api/system` → `status`) :
-  - `error` (rouge) si `HF_TOKEN` manque ou si le GPU est introuvable alors que `DEFAULT_DEVICE=cuda` ;
+  - `error` (rouge) si le modèle de diarisation n'est ni embarqué ni téléchargeable (`HF_TOKEN` absent), ou si le GPU est introuvable alors que `DEFAULT_DEVICE=cuda` ;
   - `busy` (doré, pulsation lente) pendant une tâche ;
   - `ready` (vert) sinon.
   - Ollama injoignable n'est qu'un avertissement (`warnings`), affiché dans l'infobulle.
@@ -273,8 +278,11 @@ Réglages issus de tests sur des enregistrements réels :
 uv sync
 uv run pytest
 
-# Déploiement sur la station
+# Déploiement sur la station (construction locale ; HF_TOKEN du .env pour embarquer pyannote)
 docker compose up -d --build
+
+# Image CPU, construite localement
+docker compose -f compose.cpu.yaml build
 docker compose logs -f meeting-scribe
 curl -s http://mon-serveur:8090/api/system | jq    # GPU, Ollama, file d'attente, versions
 
@@ -293,7 +301,8 @@ docker run --rm -u 1000:1000 -e HOME=/tmp -v $PWD:/work meeting-scribe-promo \
 ## 8. Pièges connus
 
 - **`data/` et `models/`** : les créer avant le premier `docker compose up`, sinon Docker les crée en root et le conteneur (uid 1000) ne peut plus y écrire.
-- **Diarisation en échec avec une erreur 401 ou 403 de Hugging Face** : le jeton est absent, ou les conditions de `pyannote/speaker-diarization-community-1` ne sont pas acceptées sur le compte.
+- **Diarisation en échec avec une erreur 401 ou 403 de Hugging Face** : seulement avec une image construite sans le modèle embarqué. Le jeton est absent, ou les conditions de `pyannote/speaker-diarization-community-1` ne sont pas acceptées sur le compte.
+- **onnxruntime 1.30 et le cache Hugging Face 2.0** : un modèle ONNX à données externes (`*.onnx.data`) ne se charge pas depuis le cache HF (« External data path escapes model directory »). Le télécharger dans un dossier ordinaire (`snapshot_download(local_dir=…)`). Rencontré en évaluant Parakeet, sans effet sur le code actuel.
 - **« VRAM libre insuffisante »** : un autre programme occupe la carte, par exemple Whishper, libretranslate ou Open WebUI avec un modèle hors Ollama.
 - **YouTube réclame une connexion** : vérifier que yt-dlp est à jour (logs de démarrage), puis fournir les cookies.
 - **Workflows n8n** : ils ont été écrits sans accès à l'instance. Les versions de nœuds peuvent demander un ajustement à l'import.
@@ -308,3 +317,5 @@ docker run --rm -u 1000:1000 -e HOME=/tmp -v $PWD:/work meeting-scribe-promo \
 - [ ] Importer les workflows n8n et les régler : identifiants Drive, identifiants de dossiers, activation. Puis test de bout en bout : dépôt Drive → `.md` sur Drive → renommage dans l'interface → `.md` mis à jour.
 - [ ] Tester un enregistrement de 1 h 30 : durée totale, VRAM, taille de contexte du compte rendu.
 - [ ] En option : favicon de la page `/docs` ; musique pour la vidéo, si l'utilisateur fournit une piste.
+- [ ] **Diffusion** (actions de l'utilisateur) : rendre le dépôt public ; ajouter le secret de dépôt `HF_TOKEN` ; lancer le workflow à la main, puis pousser un tag `v0.2.0` ; rendre publics les paquets GHCR (privés par défaut).
+- [ ] Application Windows sans Docker (uv/PyPI ou `.exe`) : plan séparé, sur demande de l'utilisateur. À traiter : annulation sans `os.killpg`, chemins `/data` et `/models`, ffmpeg et Deno.

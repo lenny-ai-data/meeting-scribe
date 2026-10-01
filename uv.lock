@@ -2,19 +2,19 @@ version = 1
 revision = 3
 requires-python = "==3.12.*"
 resolution-markers = [
-    "sys_platform == 'win32' and extra != 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu'",
-    "sys_platform == 'emscripten' and extra != 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu'",
-    "sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu'",
-    "sys_platform == 'win32' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-gpu'",
-    "sys_platform == 'emscripten' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-gpu'",
-    "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-gpu') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-gpu')",
-    "platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-gpu'",
-    "sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-gpu'",
-    "extra != 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-gpu'",
+    "sys_platform == 'win32' and extra != 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda'",
+    "sys_platform == 'emscripten' and extra != 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda'",
+    "sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda'",
+    "sys_platform == 'win32' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-cuda'",
+    "sys_platform == 'emscripten' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-cuda'",
+    "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-cuda') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-cuda')",
+    "platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-cuda'",
+    "sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-cuda'",
+    "extra != 'extra-14-meeting-scribe-cpu' and extra != 'extra-14-meeting-scribe-cuda'",
 ]
 conflicts = [[
     { package = "meeting-scribe", extra = "cpu" },
-    { package = "meeting-scribe", extra = "gpu" },
+    { package = "meeting-scribe", extra = "cuda" },
 ]]
 
 [[package]]
@@ -132,9 +132,9 @@ version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/90/fa/5c2be1f96dc179f83cdd3bb267edbd1f47d08f756785c016d5c2163901a7/asteroid-filterbanks-0.4.0.tar.gz", hash = "sha256:415f89d1dcf2b13b35f03f7a9370968ac4e6fa6800633c522dac992b283409b9", size = 24599, upload-time = "2021-04-09T20:03:07.456Z" }
@@ -216,7 +216,7 @@ name = "cffi"
 version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/ef/008a1939e372c06329a3fce4279c02f328488f3526744906eeec3da7ad5f/cffi-2.1.1.tar.gz", hash = "sha256:dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be", size = 530807, upload-time = "2026-08-03T21:21:18.939Z" }
 wheels = [
@@ -652,9 +652,9 @@ name = "julius"
 version = "0.2.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1d/c6/5c2aea2b11ead1680bb5b17c996def31f8ccade471cada37cdb93855e06f/julius-0.2.8.tar.gz", hash = "sha256:d691e651200930affea4f6c849c26e95fec846087281ae3d1a7757eac90253d5", size = 48081, upload-time = "2026-06-03T16:05:34.52Z" }
 wheels = [
@@ -692,14 +692,14 @@ name = "lightning"
 version = "2.6.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "fsspec", extra = ["http"], marker = "extra == 'extra-14-meeting-scribe-cpu' or extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "fsspec", extra = ["http"], marker = "extra == 'extra-14-meeting-scribe-cpu' or extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "lightning-utilities" },
     { name = "packaging" },
     { name = "pytorch-lightning" },
     { name = "pyyaml" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "torchmetrics" },
     { name = "tqdm" },
     { name = "typing-extensions" },
@@ -802,7 +802,7 @@ wheels = [
 
 [[package]]
 name = "meeting-scribe"
-version = "0.1.0"
+version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
@@ -818,15 +818,15 @@ dependencies = [
 
 [package.optional-dependencies]
 cpu = [
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchvision", version = "0.23.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchvision", version = "0.23.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchvision", version = "0.23.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchvision", version = "0.23.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
     { name = "whisperx" },
 ]
-gpu = [
+cuda = [
     { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" } },
     { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" } },
     { name = "torchvision", version = "0.23.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" } },
@@ -847,18 +847,18 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "torch", marker = "extra == 'cpu'", specifier = "==2.8.*", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "meeting-scribe", extra = "cpu" } },
-    { name = "torch", marker = "extra == 'gpu'", specifier = "==2.8.*", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "meeting-scribe", extra = "gpu" } },
+    { name = "torch", marker = "extra == 'cuda'", specifier = "==2.8.*", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "meeting-scribe", extra = "cuda" } },
     { name = "torchaudio", marker = "extra == 'cpu'", specifier = "==2.8.*", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "meeting-scribe", extra = "cpu" } },
-    { name = "torchaudio", marker = "extra == 'gpu'", specifier = "==2.8.*", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "meeting-scribe", extra = "gpu" } },
+    { name = "torchaudio", marker = "extra == 'cuda'", specifier = "==2.8.*", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "meeting-scribe", extra = "cuda" } },
     { name = "torchvision", marker = "extra == 'cpu'", specifier = "==0.23.*", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "meeting-scribe", extra = "cpu" } },
-    { name = "torchvision", marker = "extra == 'gpu'", specifier = "==0.23.*", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "meeting-scribe", extra = "gpu" } },
+    { name = "torchvision", marker = "extra == 'cuda'", specifier = "==0.23.*", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "meeting-scribe", extra = "cuda" } },
     { name = "tzdata" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
     { name = "whisperx", marker = "extra == 'cpu'", specifier = "==3.8.6" },
-    { name = "whisperx", marker = "extra == 'gpu'", specifier = "==3.8.6" },
+    { name = "whisperx", marker = "extra == 'cuda'", specifier = "==3.8.6" },
     { name = "yt-dlp", extras = ["default"] },
 ]
-provides-extras = ["gpu", "cpu"]
+provides-extras = ["cuda", "cpu"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8" }]
@@ -1008,7 +1008,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.10.2.21"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "nvidia-cublas-cu12", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fa/41/e79269ce215c857c935fd86bcfe91a451a584dfc27f1e068f568b9ad1ab7/nvidia_cudnn_cu12-9.10.2.21-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:c9132cc3f8958447b4910a1720036d9eff5928cc3179b0a51fb6d167c6cc87d8", size = 705026878, upload-time = "2025-06-06T21:52:51.348Z" },
@@ -1021,7 +1021,7 @@ name = "nvidia-cufft-cu12"
 version = "11.3.3.83"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/bc/7771846d3a0272026c416fbb7e5f4c1f146d6d80704534d0b187dd6f4800/nvidia_cufft_cu12-11.3.3.83-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:848ef7224d6305cdb2a4df928759dca7b1201874787083b6e7550dd6765ce69a", size = 193109211, upload-time = "2025-03-07T01:44:56.873Z" },
@@ -1053,9 +1053,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.7.3.90"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "nvidia-cusparse-cu12", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "nvidia-nvjitlink-cu12", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "nvidia-cublas-cu12", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "nvidia-cusparse-cu12", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/32/f7cd6ce8a7690544d084ea21c26e910a97e077c9b7f07bf5de623ee19981/nvidia_cusolver_cu12-11.7.3.90-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:db9ed69dbef9715071232caa9b69c52ac7de3a95773c2db65bdba85916e4e5c0", size = 267229841, upload-time = "2025-03-07T01:46:54.356Z" },
@@ -1068,7 +1068,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.5.8.93"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/f7/cd777c4109681367721b00a106f491e0d0d15cfa1fd59672ce580ce42a97/nvidia_cusparse_cu12-12.5.8.93-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:9b6c161cb130be1a07a27ea6923df8141f3c295852f4b260c65f18f3e0a091dc", size = 288117129, upload-time = "2025-03-07T01:47:40.407Z" },
@@ -1238,7 +1238,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "googleapis-common-protos" },
     { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-http-transport", extra = ["urllib3"], marker = "extra == 'extra-14-meeting-scribe-cpu' or extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "opentelemetry-exporter-http-transport", extra = ["urllib3"], marker = "extra == 'extra-14-meeting-scribe-cpu' or extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "opentelemetry-exporter-otlp-common" },
     { name = "opentelemetry-exporter-otlp-proto-common" },
     { name = "opentelemetry-proto" },
@@ -1435,13 +1435,13 @@ dependencies = [
     { name = "pytorch-metric-learning" },
     { name = "rich" },
     { name = "safetensors" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "torch-audiomentations" },
-    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "torchcodec" },
     { name = "torchmetrics" },
 ]
@@ -1634,7 +1634,7 @@ name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
@@ -1680,13 +1680,13 @@ name = "pytorch-lightning"
 version = "2.6.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "fsspec", extra = ["http"], marker = "extra == 'extra-14-meeting-scribe-cpu' or extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "fsspec", extra = ["http"], marker = "extra == 'extra-14-meeting-scribe-cpu' or extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "lightning-utilities" },
     { name = "packaging" },
     { name = "pyyaml" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "torchmetrics" },
     { name = "tqdm" },
     { name = "typing-extensions" },
@@ -1703,9 +1703,9 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "scikit-learn" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "tqdm" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9b/80/6e61b1a91debf4c1b47d441f9a9d7fe2aabcdd9575ed70b2811474eb95c3/pytorch-metric-learning-2.9.0.tar.gz", hash = "sha256:27a626caf5e2876a0fd666605a78cb67ef7597e25d7a68c18053dd503830701f", size = 84530, upload-time = "2025-08-17T17:11:19.501Z" }
@@ -1966,13 +1966,13 @@ resolution-markers = [
     "sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "filelock", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "fsspec", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "jinja2", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "networkx", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "setuptools", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "sympy", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "typing-extensions", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "filelock", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "fsspec", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "jinja2", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "networkx", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "setuptools", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "sympy", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "typing-extensions", marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.8.0-cp312-none-macosx_11_0_arm64.whl", hash = "sha256:a47b7986bee3f61ad217d8a8ce24605809ab425baf349f97de758815edd2ef54", upload-time = "2025-10-01T23:35:50Z" },
@@ -1989,13 +1989,13 @@ resolution-markers = [
     "platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux'",
 ]
 dependencies = [
-    { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "jinja2", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "networkx", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "setuptools", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "sympy", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "typing-extensions", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "jinja2", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "networkx", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "setuptools", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "sympy", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "typing-extensions", marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.8.0%2Bcpu-cp312-cp312-linux_s390x.whl", hash = "sha256:0e34e276722ab7dd0dffa9e12fe2135a9b34a0e300c456ed7ad6430229404eb5", upload-time = "2025-10-01T23:33:41Z" },
@@ -2015,28 +2015,28 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "filelock", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "fsspec", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "jinja2", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "networkx", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-cuda-cupti-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-cudnn-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-cufft-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-cufile-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-curand-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-cusolver-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-cusparse-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-cusparselt-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "nvidia-nvtx-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "setuptools", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "sympy", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-gpu') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "typing-extensions", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "filelock", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "fsspec", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "jinja2", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "networkx", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-cuda-cupti-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-cudnn-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-cufft-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-cufile-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-curand-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-cusolver-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-cusparse-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-cusparselt-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "nvidia-nvtx-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "setuptools", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "sympy", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cuda') or (platform_machine != 'x86_64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "typing-extensions", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:4354fc05bb79b208d6995a04ca1ceef6a9547b1c4334435574353d381c55087c", upload-time = "2025-10-01T23:51:02Z" },
@@ -2049,13 +2049,13 @@ version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "julius" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "torch-pitch-shift" },
-    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/31/8d/2f8fd7e34c75f5ee8de4310c3bd3f22270acd44d1f809e2fe7c12fbf35f8/torch_audiomentations-0.12.0.tar.gz", hash = "sha256:b02d4c5eb86376986a53eb405cca5e34f370ea9284411237508e720c529f7888", size = 52094, upload-time = "2025-01-15T09:07:01.071Z" }
 wheels = [
@@ -2069,12 +2069,12 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "packaging" },
     { name = "primepy" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/79/a6/722a832bca75d5079f6731e005b3d0c2eec7c6c6863d030620952d143d57/torch_pitch_shift-1.2.5.tar.gz", hash = "sha256:6e1c7531f08d0f407a4c55e5ff8385a41355c5c5d27ab7fa08632e51defbd0ed", size = 4725, upload-time = "2024-09-25T19:10:12.922Z" }
 wheels = [
@@ -2090,8 +2090,8 @@ resolution-markers = [
     "sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torchaudio-2.8.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:ddef94bf181e6447cbb05f38beaca8f6c5bb8d2b9ddced1aa3452025b9fc70d3", upload-time = "2025-08-05T20:12:02Z" },
@@ -2108,7 +2108,7 @@ resolution-markers = [
     "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torchaudio-2.8.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:9377faee65a290578280ac7f4884c3586253dac2ca28c60f458ff6efe86a6b05", upload-time = "2025-08-05T20:12:02Z" },
@@ -2125,7 +2125,7 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cu128/torchaudio-2.8.0%2Bcu128-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:145b8a0c21cfcaa1705c67173c5d439087e0e120d5da9bc344746f937901d243", upload-time = "2025-08-05T20:12:07Z" },
@@ -2150,9 +2150,9 @@ dependencies = [
     { name = "lightning-utilities" },
     { name = "numpy" },
     { name = "packaging" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/81/34/39b8b749333db56c0585d7a11fa62a283c087bb1dfc897d69fb8cedbefb1/torchmetrics-1.9.0.tar.gz", hash = "sha256:a488609948600df52d3db4fcdab02e62aab2a85ef34da67037dc3e65b8512faa", size = 581765, upload-time = "2026-03-09T17:41:22.443Z" }
 wheels = [
@@ -2168,10 +2168,10 @@ resolution-markers = [
     "sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "numpy", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "pillow", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "numpy", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "pillow", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torchvision-0.23.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:e0e2c04a91403e8dd3af9756c6a024a1d9c0ed9c0d592a8314ded8f4fe30d440", upload-time = "2025-08-05T20:11:47Z" },
@@ -2188,9 +2188,9 @@ resolution-markers = [
     "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "pillow", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "pillow", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torchvision-0.23.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:ae459d4509d3b837b978dc6c66106601f916b6d2cda75c137e3f5f48324ce1da", upload-time = "2025-08-05T20:11:47Z" },
@@ -2207,9 +2207,9 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "numpy", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "pillow", marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "numpy", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "pillow", marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cu128/torchvision-0.23.0%2Bcu128-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:9cb3c13997afcb44057ca10d943c6c4cba3068afde0f370965abce9c89fcffa9", upload-time = "2025-08-05T20:11:52Z" },
@@ -2317,7 +2317,7 @@ standard = [
     { name = "httptools" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
-    { name = "uvloop", marker = "(platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32') or (platform_python_implementation == 'PyPy' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'cygwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'win32' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "uvloop", marker = "(platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32') or (platform_python_implementation == 'PyPy' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'cygwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'win32' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
     { name = "watchfiles" },
     { name = "websockets" },
 ]
@@ -2403,16 +2403,16 @@ dependencies = [
     { name = "omegaconf" },
     { name = "pandas" },
     { name = "pyannote-audio" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
-    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "torchcodec", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
-    { name = "torchvision", version = "0.23.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchvision", version = "0.23.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "torchvision", version = "0.23.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-gpu'" },
+    { name = "torchvision", version = "0.23.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_machine != 'aarch64' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (platform_python_implementation != 'CPython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchvision", version = "0.23.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-14-meeting-scribe-cpu') or (sys_platform == 'darwin' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'linux' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "torchvision", version = "0.23.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-14-meeting-scribe-cuda'" },
     { name = "transformers" },
     { name = "triton", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
@@ -2463,8 +2463,8 @@ wheels = [
 
 [package.optional-dependencies]
 default = [
-    { name = "brotli", marker = "(implementation_name == 'cpython' and sys_platform != 'ios') or (implementation_name != 'cpython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu') or (sys_platform == 'ios' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
-    { name = "brotlicffi", marker = "implementation_name != 'cpython' or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-gpu')" },
+    { name = "brotli", marker = "(implementation_name == 'cpython' and sys_platform != 'ios') or (implementation_name != 'cpython' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda') or (sys_platform == 'ios' and extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
+    { name = "brotlicffi", marker = "implementation_name != 'cpython' or (extra == 'extra-14-meeting-scribe-cpu' and extra == 'extra-14-meeting-scribe-cuda')" },
     { name = "certifi" },
     { name = "mutagen" },
     { name = "pycryptodomex" },

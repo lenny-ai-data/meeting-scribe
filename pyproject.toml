@@ -1,6 +1,6 @@
 [project]
 name = "meeting-scribe"
-version = "0.1.0"
+version = "0.2.0"
 description = "Transcription et comptes rendus de réunions (WhisperX + pyannote + LLM), pilotable par API"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -16,8 +16,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Pile de transcription, installée dans l'image Docker : `uv sync --extra gpu` (CUDA) ou `--extra cpu`
-gpu = [
+# Pile de transcription, installée dans l'image Docker : `uv sync --extra cuda` ou `--extra cpu`
+cuda = [
     "whisperx==3.8.6",
     "torch==2.8.*",
     "torchaudio==2.8.*",
@@ -35,12 +35,12 @@ dev = ["pytest>=8"]
 
 [tool.uv]
 # Les deux variantes de torch ne peuvent pas cohabiter
-conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+conflicts = [[{ extra = "cpu" }, { extra = "cuda" }]]
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu128", extra = "gpu" }, { index = "pytorch-cpu", extra = "cpu" }]
-torchaudio = [{ index = "pytorch-cu128", extra = "gpu" }, { index = "pytorch-cpu", extra = "cpu" }]
-torchvision = [{ index = "pytorch-cu128", extra = "gpu" }, { index = "pytorch-cpu", extra = "cpu" }]
+torch = [{ index = "pytorch-cu128", extra = "cuda" }, { index = "pytorch-cpu", extra = "cpu" }]
+torchaudio = [{ index = "pytorch-cu128", extra = "cuda" }, { index = "pytorch-cpu", extra = "cpu" }]
+torchvision = [{ index = "pytorch-cu128", extra = "cuda" }, { index = "pytorch-cpu", extra = "cpu" }]
 
 [[tool.uv.index]]
 name = "pytorch-cu128"

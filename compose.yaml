@@ -1,7 +1,15 @@
+# Meeting Scribe avec GPU NVIDIA. Sans GPU : docker compose -f compose.cpu.yaml up -d
 services:
   meeting-scribe:
-    build: .
-    image: meeting-scribe:latest
+    image: ghcr.io/lenny-ai-data/meeting-scribe:cuda
+    # Construction locale (docker compose up -d --build) : le jeton HF_TOKEN du .env sert à
+    # embarquer le modèle de diarisation dans l'image ; sans lui, il sera exigé à l'exécution
+    build:
+      context: .
+      args:
+        FLAVOR: cuda
+      secrets:
+        - hf_token
     container_name: meeting-scribe
     restart: unless-stopped
     ports:
@@ -13,7 +21,7 @@ services:
       - "host.docker.internal:host-gateway"   # pour joindre Ollama sur l'hôte
     volumes:
       - ./data:/data       # base SQLite, fichiers des jobs, config (cookies YouTube)
-      - ./models:/models   # cache des modèles (Whisper, alignement, pyannote)
+      - ./models:/models   # cache des modèles (Whisper, alignement)
     deploy:
       resources:
         reservations:
@@ -21,3 +29,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+secrets:
+  hf_token:
+    environment: HF_TOKEN
