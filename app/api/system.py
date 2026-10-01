@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 
 from .. import __version__, db
 from ..config import LANGUAGES, WHISPER_MODELS, available_devices, get_settings
+from ..llm.config import OllamaConfig, llm_config
 from ..worker.queue import Worker
 from .common import get_worker
 
@@ -40,11 +41,10 @@ async def _gpu() -> list[dict] | None:
     return gpus
 
 
-async def _ollama() -> dict:
-    settings = get_settings()
-    info = {"url": settings.ollama_url, "default_model": settings.ollama_model, "reachable": False}
+async def _ollama(cfg: OllamaConfig) -> dict:
+    info = {"url": cfg.url, "default_model": cfg.model or None, "unload_before_gpu": cfg.unload, "reachable": False}
     try:
-        async with httpx.AsyncClient(base_url=settings.ollama_url, timeout=5) as client:
+        async with httpx.AsyncClient(base_url=cfg.url, timeout=5) as client:
             ver, tags, ps = await asyncio.gather(client.get("/api/version"), client.get("/api/tags"),
                                                  client.get("/api/ps"))
         info.update(
@@ -74,15 +74,16 @@ def _status(settings, gpu: list[dict] | None, ollama: dict, running: bool) -> di
 @router.get("/system", summary="État du service : GPU, Ollama, file d'attente, configuration")
 async def system(worker: Annotated[Worker, Depends(get_worker)]):
     settings = get_settings()
-    gpu, ollama = await asyncio.gather(_gpu(), _ollama())
+    cfg = llm_config()
+    gpu, ollama = await asyncio.gather(_gpu(), _ollama(cfg.ollama))
     current = worker.current
     return {
         "version": __version__,
         "status": _status(settings, gpu, ollama, current is not None),
         "gpu": gpu,
         "ollama": ollama,
-        "llm_api": {"configured": settings.llm_api_configured, "base_url": settings.llm_api_base_url or None,
-                    "model": settings.llm_api_model or None},
+        "llm_api": {"configured": cfg.openai.configured, "base_url": cfg.openai.base_url or None,
+                    "model": cfg.openai.model or None},
         "hf_token": bool(settings.hf_token),
         "diarization": {"model": settings.diarization_model, "bundled": settings.diarization_bundled},
         "auth": bool(settings.api_token),

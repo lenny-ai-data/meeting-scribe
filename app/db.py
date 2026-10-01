@@ -98,6 +98,13 @@ CREATE TABLE IF NOT EXISTS summaries (
     prompt_tokens INTEGER,
     completion_tokens INTEGER
 );
+
+-- Réglages modifiables depuis l'interface ou l'API (valeur JSON) ; priment sur le .env
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -404,3 +411,20 @@ def update_summary(summary_id: str, **fields: Any) -> None:
 def delete_summary(summary_id: str) -> None:
     with db() as conn:
         conn.execute("DELETE FROM summaries WHERE id = ?", (summary_id,))
+
+
+# --- Réglages ----------------------------------------------------------------------
+
+def get_setting(key: str) -> Any:
+    with db() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return json.loads(row["value"]) if row else None
+
+
+def set_setting(key: str, value: Any) -> None:
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (key, json.dumps(value), now_iso()),
+        )

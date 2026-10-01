@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
 from .. import db
-from ..config import get_settings
+from ..llm import ollama
+from ..llm.base import LLMError
+from ..llm.config import llm_config
 from ..llm.summarize import render_summary
 from ..render import suggested_filename
 from ..worker.queue import Worker
@@ -19,7 +21,7 @@ class SummaryRequest(BaseModel):
     system_prompt: str | None = Field(None, description="Texte de prompt système ponctuel (remplace prompt_id)")
     meeting_prompt: str = Field("", description="Consignes propres à cette réunion")
     provider: Literal["ollama", "openai"] = "ollama"
-    model: str | None = Field(None, description="Par défaut OLLAMA_MODEL ou LLM_API_MODEL")
+    model: str | None = Field(None, description="Par défaut, le modèle choisi dans les réglages LLM")
     think: bool = Field(False, description="Mode « thinking » (Ollama, modèles compatibles)")
     temperature: float | None = Field(None, ge=0, le=2)
 
@@ -42,12 +44,22 @@ def summary_or_404(summary_id: str) -> dict:
 
 
 @router.post("/jobs/{job_id}/summaries", status_code=202, summary="Générer un compte rendu par LLM")
-def create_summary(job_id: str, body: SummaryRequest, worker: Annotated[Worker, Depends(get_worker)]):
-    settings = get_settings()
+async def create_summary(job_id: str, body: SummaryRequest, worker: Annotated[Worker, Depends(get_worker)]):
+    cfg = llm_config()
     job = job_or_404(job_id)
     require_completed(job)
-    if body.provider == "openai" and not settings.llm_api_configured:
-        raise HTTPException(400, "API LLM non configurée (LLM_API_BASE_URL, LLM_API_MODEL dans .env)")
+    if body.provider == "openai" and not cfg.openai.configured:
+        raise HTTPException(400, "API LLM non configurée (Réglages, ou LLM_API_BASE_URL et LLM_API_MODEL dans .env)")
+    model = body.model or (cfg.ollama.model if body.provider == "ollama" else cfg.openai.model)
+    if not model:
+        # Pas de modèle par défaut : le premier modèle installé, comme dans l'interface
+        try:
+            installed = await ollama.list_models(cfg.ollama.url)
+        except LLMError as exc:
+            raise HTTPException(400, f"Aucun modèle Ollama par défaut, et liste des modèles indisponible : {exc}") from exc
+        if not installed:
+            raise HTTPException(400, f"Aucun modèle installé dans Ollama ({cfg.ollama.url})")
+        model = installed[0]
 
     if body.system_prompt and body.system_prompt.strip():
         prompt_id, prompt_name, system_prompt = None, "(ponctuel)", body.system_prompt
@@ -57,9 +69,8 @@ def create_summary(job_id: str, body: SummaryRequest, worker: Annotated[Worker, 
             raise HTTPException(404, "Prompt introuvable")
         prompt_id, prompt_name, system_prompt = prompt["id"], prompt["name"], prompt["content"]
 
-    default_model = settings.ollama_model if body.provider == "ollama" else settings.llm_api_model
     summary = db.create_summary(
-        job_id=job_id, provider=body.provider, model=body.model or default_model,
+        job_id=job_id, provider=body.provider, model=model,
         prompt_id=prompt_id, prompt_name=prompt_name, system_prompt=system_prompt,
         meeting_prompt=body.meeting_prompt, think=int(body.think), temperature=body.temperature,
     )

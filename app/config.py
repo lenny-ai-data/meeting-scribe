@@ -47,8 +47,11 @@ class Settings(BaseSettings):
 
     # LLM
     ollama_url: str = "http://host.docker.internal:11434"
-    ollama_model: str = "qwen3.8:27b"
+    # Modèle par défaut ; vide = l'interface propose le premier modèle installé
+    ollama_model: str = ""
     ollama_max_ctx: int = 65536
+    # Décharger Ollama avant un job GPU ; vide = seulement s'il tourne sur cette machine
+    ollama_unload_before_gpu: bool | None = None
     ollama_unload_timeout: float = 30.0
     llm_api_base_url: str = ""
     llm_api_key: str = ""
@@ -88,10 +91,6 @@ class Settings(BaseSettings):
         if self.min_free_vram_gb is not None:
             return self.min_free_vram_gb
         return MIN_VRAM_GB.get(model, max(MIN_VRAM_GB.values()))
-
-    @property
-    def llm_api_configured(self) -> bool:
-        return bool(self.llm_api_base_url and self.llm_api_model)
 
     def job_dir(self, job_id: str) -> Path:
         return self.jobs_dir / job_id

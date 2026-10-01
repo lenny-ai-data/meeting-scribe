@@ -1,76 +1,9 @@
-import json
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
 import pytest
 import yaml
-from fastapi.testclient import TestClient
 
-from app.config import get_settings
 from app.llm import base
 
-from .conftest import upload, wait_for
-
-
-class FakeLLM(BaseHTTPRequestHandler):
-    requests: list[tuple[str, dict, dict]] = []
-    fail = False
-
-    def do_POST(self):
-        payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        type(self).requests.append((self.path, payload, dict(self.headers)))
-        if self.fail:
-            return self._reply({"error": "boom"}, 500)
-        if self.path == "/api/chat":
-            self._reply({"message": {"role": "assistant", "content": "<think>hmm</think>\n## Contexte\nRéunion test."},
-                         "prompt_eval_count": 1234, "eval_count": 56})
-        elif self.path == "/v1/chat/completions":
-            self._reply({"model": payload["model"], "choices": [{"message": {"content": "## Contexte\nVia API."}}],
-                         "usage": {"prompt_tokens": 10, "completion_tokens": 5}})
-        else:
-            self._reply({}, 404)
-
-    def _reply(self, payload, status=200):
-        body = json.dumps(payload).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, *args):
-        pass
-
-
-@pytest.fixture
-def llm_client(settings_env):
-    FakeLLM.requests, FakeLLM.fail = [], False
-    server = ThreadingHTTPServer(("127.0.0.1", 0), FakeLLM)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    url = f"http://127.0.0.1:{server.server_port}"
-    settings_env.setenv("OLLAMA_URL", url)
-    settings_env.setenv("OLLAMA_MODEL", "qwen-test")
-    settings_env.setenv("LLM_API_BASE_URL", url + "/v1")
-    settings_env.setenv("LLM_API_KEY", "sk-test")
-    settings_env.setenv("LLM_API_MODEL", "gpt-test")
-    get_settings.cache_clear()
-    from app.main import create_app
-
-    with TestClient(create_app()) as c:
-        yield c, FakeLLM
-    server.shutdown()
-
-
-def wait_summary(client, summary_id, timeout=20):
-    import time
-
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        s = client.get(f"/api/summaries/{summary_id}").json()
-        if s["status"] in ("completed", "failed", "cancelled"):
-            return s
-        time.sleep(0.1)
-    raise AssertionError(s)
+from .conftest import upload, wait_for, wait_summary
 
 
 def test_num_ctx():

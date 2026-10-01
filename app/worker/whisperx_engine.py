@@ -11,6 +11,7 @@ from pathlib import Path
 
 from ..config import Settings
 from ..errors import ScribeError
+from ..llm.config import llm_config
 from . import gpu
 
 log = logging.getLogger("whisperx")
@@ -35,9 +36,13 @@ class WhisperXEngine:
     def prepare_gpu(self, check_vram: bool, model: str) -> None:
         if self.device != "cuda":
             return
-        unloaded = gpu.unload_ollama(self.settings.ollama_url, self.settings.ollama_unload_timeout)
-        if unloaded:
-            log.info("Modèles Ollama déchargés : %s", ", ".join(unloaded))
+        ollama = llm_config().ollama
+        if ollama.unload:
+            unloaded = gpu.unload_ollama(ollama.url, self.settings.ollama_unload_timeout)
+            if unloaded:
+                log.info("Modèles Ollama déchargés : %s", ", ".join(unloaded))
+        else:
+            log.info("Ollama (%s) ne partage pas ce GPU : pas de déchargement", ollama.url)
         if check_vram:
             gpu.check_free_vram(self.settings.min_vram_gb(model))
 

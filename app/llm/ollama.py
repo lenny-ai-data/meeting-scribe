@@ -42,3 +42,14 @@ async def complete(base_url: str, model: str, system: str, user: str, *, think: 
         prompt_tokens=prompt_tokens,
         completion_tokens=data.get("eval_count"),
     )
+
+
+async def list_models(base_url: str, timeout: float = 5) -> list[str]:
+    async with httpx.AsyncClient(base_url=base_url, timeout=timeout) as client:
+        try:
+            resp = await client.get("/api/tags")
+        except httpx.HTTPError as exc:
+            raise LLMError(f"Ollama injoignable ({base_url}) : {exc or type(exc).__name__}") from exc
+    if resp.status_code != 200:
+        raise LLMError(f"Ollama a répondu {resp.status_code} : {resp.text[:300]}")
+    return sorted(m["name"] for m in resp.json().get("models", []))

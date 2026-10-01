@@ -33,3 +33,19 @@ async def complete(base_url: str, api_key: str, model: str, system: str, user: s
         prompt_tokens=usage.get("prompt_tokens"),
         completion_tokens=usage.get("completion_tokens"),
     )
+
+
+async def list_models(base_url: str, api_key: str, timeout: float = 10) -> list[str]:
+    """Modèles proposés par le service (GET {base_url}/models), quand il expose cette route."""
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            resp = await client.get(base_url.rstrip("/") + "/models", headers=headers)
+        except httpx.HTTPError as exc:
+            raise LLMError(f"API LLM injoignable ({base_url}) : {exc or type(exc).__name__}") from exc
+    if resp.status_code != 200:
+        raise LLMError(f"L'API LLM a répondu {resp.status_code} : {resp.text[:300]}")
+    try:
+        return sorted(m["id"] for m in resp.json()["data"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise LLMError(f"Liste de modèles inattendue : {resp.text[:300]}") from exc
