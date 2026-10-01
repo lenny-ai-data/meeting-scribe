@@ -175,6 +175,10 @@ class WhisperXEngine:
                     f"huggingface.co avec le compte du jeton HF_TOKEN. ({exc})"
                 ) from exc
             raise
+        if self.device == "cpu":
+            segmentation = pipeline.model._segmentation
+            segmentation.step = min(settings.cpu_diarization_step, segmentation.duration)
+            log.info("Diarisation sur CPU : fenêtres de %g s, pas de %g s", segmentation.duration, segmentation.step)
         df = pipeline(audio, num_speakers=num_speakers, min_speakers=min_speakers, max_speakers=max_speakers,
                       progress_callback=on_progress)
         del pipeline

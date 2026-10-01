@@ -99,7 +99,7 @@ async def create_job(
     worker: Annotated[Worker, Depends(get_worker)],
     file: Annotated[UploadFile | None, File(description="Fichier audio ou vidéo (.m4a, .mp4…)")] = None,
     url: Annotated[str | None, Form(description="URL à télécharger avec yt-dlp (YouTube…)")] = None,
-    model: Annotated[str | None, Form(description="large-v3 ou large-v3-turbo")] = None,
+    model: Annotated[str | None, Form(description="large-v3, large-v3-turbo ou small (rapide, pour le CPU)")] = None,
     language: Annotated[str | None, Form(description="fr ou en")] = None,
     device: Annotated[str | None, Form(description="cuda ou cpu")] = None,
     num_speakers: Annotated[int | None, Form()] = None,

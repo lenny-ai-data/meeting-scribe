@@ -4,11 +4,12 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-WHISPER_MODELS = ("large-v3", "large-v3-turbo")
+# small : profil rapide sur CPU ; base et tiny écartés (WER 28 et 36 % en français, contre 15 % pour small)
+WHISPER_MODELS = ("large-v3", "large-v3-turbo", "small")
 LANGUAGES = ("fr", "en")
 DEVICES = ("cuda", "cpu")
 # VRAM libre exigée avant de lancer un job GPU (Go) : pic mesuré pendant la diarisation, avec une marge
-MIN_VRAM_GB = {"large-v3": 10.0, "large-v3-turbo": 6.0}
+MIN_VRAM_GB = {"large-v3": 10.0, "large-v3-turbo": 6.0, "small": 4.0}
 
 APP_ROOT = Path(__file__).resolve().parent.parent
 
@@ -41,6 +42,10 @@ class Settings(BaseSettings):
     # Seuil de VRAM libre imposé quel que soit le modèle (Go) ; vide = selon le modèle (MIN_VRAM_GB)
     min_free_vram_gb: float | None = None
     diarization_model: str = "pyannote/speaker-diarization-community-1"
+    # Pas des fenêtres de 10 s de la diarisation sur CPU (secondes) ; pyannote utilise 1 s par défaut,
+    # mais le calcul des empreintes vocales est proportionnel au nombre de fenêtres : 2,5 s divise
+    # le temps par 2,5 (203 s → 81 s pour 7 min 54) pour un écart de 4 % avec le pas de 1 s
+    cpu_diarization_step: float = 2.5
     # Copie locale du modèle de diarisation (embarquée dans l'image) : ni jeton ni réseau
     diarization_model_dir: Path = Path("/opt/models/pyannote/speaker-diarization-community-1")
     # Pipeline factice (tests, sans GPU ni WhisperX)

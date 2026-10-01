@@ -93,7 +93,7 @@ def test_list_and_system(client, audio_file):
     info = client.get("/api/system").json()
     assert info["fake_pipeline"] is True
     assert info["ollama"]["reachable"] is False
-    assert "large-v3-turbo" in info["options"]["models"]
+    assert info["options"]["models"] == ["large-v3", "large-v3-turbo", "small"]
     # Sans HF_TOKEN, le voyant est rouge ; Ollama injoignable n'est qu'un avertissement
     assert info["status"]["state"] == "error"
     assert any("HF_TOKEN" in p for p in info["status"]["problems"])
@@ -145,6 +145,7 @@ def test_min_vram_by_model(settings_env):
     settings = get_settings()
     assert settings.min_vram_gb("large-v3") == 10
     assert settings.min_vram_gb("large-v3-turbo") == 6
+    assert settings.min_vram_gb("small") == 4
     assert settings.min_vram_gb("modèle inconnu") == 10
     # Seuil imposé par l'environnement ; une variable vide vaut « selon le modèle »
     settings_env.setenv("MIN_FREE_VRAM_GB", "4")
