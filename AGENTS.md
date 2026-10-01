@@ -7,8 +7,7 @@ Les particularités d'une installation (adresses, matériel, tâches locales) vo
 Pour le reste :
 - l'usage, l'API et la configuration sont dans le [README](README.md) ;
 - toutes les variables d'environnement sont dans [.env.example](.env.example) ;
-- l'intégration n8n est dans [docs/n8n/README.md](docs/n8n/README.md) ;
-- la vidéo de présentation est dans [promo/README.md](promo/README.md).
+- l'intégration n8n est dans [docs/n8n/README.md](docs/n8n/README.md).
 
 ## 1. Le projet
 
@@ -109,7 +108,6 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 | `tests/` | pytest : jobs, GPU, intervenants et rendu, comptes rendus, intégrations (YouTube, callbacks, auth) |
 | `docs/n8n/` | Deux workflows à importer et leur documentation |
 | `docs/branding/` | Logo d'origine et `make_logo.py`, qui génère tous les SVG, ICO et PNG de `web/` |
-| `promo/` | Vidéo de présentation Remotion (projet Node indépendant) |
 
 ## 5. Journal des décisions
 
@@ -241,7 +239,7 @@ Réglages issus de tests sur des enregistrements réels :
   - `busy` (doré, pulsation lente) pendant une tâche ;
   - `ready` (vert) sinon.
   - Ollama injoignable n'est qu'un avertissement (`warnings`), affiché dans l'infobulle.
-- **Fond** : trois halos aux couleurs de la vidéo de présentation, plus une trame de points, insérés par `app.js` (`.backdrop`). Ils dérivent lentement, sauf si `prefers-reduced-motion` est actif. Leur opacité est plus faible en clair. Les cartes sont translucides (`backdrop-filter`).
+- **Fond** : trois halos aux couleurs de l'identité visuelle, plus une trame de points, insérés par `app.js` (`.backdrop`). Ils dérivent lentement, sauf si `prefers-reduced-motion` est actif. Leur opacité est plus faible en clair. Les cartes sont translucides (`backdrop-filter`).
 - **Page d'une réunion** : sections dépliantes (`<details class="card section">`) dans cet ordre : Intervenants, Transcript (replié par défaut, car ce n'est pas le cœur de l'usage), puis Compte rendu. Ordre et repli voulus.
 - **Réglages** : pas de barre latérale (`withShell(page, null, { sidebar: false })`), mais le menu « Réunions » reste dans l'en-tête de toutes les pages.
 - **Thème** : Auto, Clair ou Sombre, choisi dans l'en-tête et mémorisé dans `localStorage` (`meeting-scribe.theme`).
@@ -253,15 +251,6 @@ Réglages issus de tests sur des enregistrements réels :
 
 - **Logo** : vectorisé depuis `docs/branding/logo-original.jpg` par `docs/branding/make_logo.py`, qui génère tous les fichiers de `web/` (favicons, variantes du logo). **Pour modifier le logo, modifier le script, pas les SVG.**
 - **Palette** : violet `#5b2bd9` en clair, `#a98bff` en sombre.
-
-### Vidéo de présentation (`promo/`)
-
-- **Remotion 4**, rendu dans un conteneur Node : pas de Node sur l'hôte.
-- **Durée** : environ 1 min, en 1080p30. L'horloge est ralentie (`SPEED = 0.8`) et les fondus durent 16 images.
-- **Données** : celles d'un vrai job, une interview télévisée.
-- **Droits** : seul le texte produit par l'application est montré, jamais le son ni l'image de l'émission, pour éviter tout problème de droits.
-- **Correction de la reconnaissance** : « Alia Salamé » devient « Léa Salamé » à l'export (`scripts/export_demo.py`).
-- **Partie automatisation** : la chaîne iPhone → cloud → n8n → API → agent → CRM est fictive (Acme Industrie, Claire Dumont, Thomas Leroy), et la vidéo le signale.
 
 ## 6. Mesures de référence (RTX 3090 et i7-12700, modèles déjà en cache)
 
@@ -293,11 +282,6 @@ less data/jobs/<id>/pipeline.log
 
 # Logo et favicons (après modification du script)
 uv run python docs/branding/make_logo.py
-
-# Vidéo de présentation
-cd promo && docker build -t meeting-scribe-promo . && \
-docker run --rm -u 1000:1000 -e HOME=/tmp -v $PWD:/work meeting-scribe-promo \
-  sh -c "npm install && npx remotion render Promo out/meeting-scribe-promo.mp4"
 ```
 
 ## 8. Pièges connus

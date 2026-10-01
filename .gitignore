@@ -4,6 +4,8 @@
 .env
 # Notes propres à une installation (adresses, matériel)
 AGENTS.local.md
+# Vidéo de présentation : projet local, hors dépôt
+/promo/
 
 # Python
 __pycache__/
