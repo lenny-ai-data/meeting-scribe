@@ -44,7 +44,15 @@ function cycleTheme() {
 }
 
 applyTheme();
-document.addEventListener("DOMContentLoaded", () => applyTheme());
+document.addEventListener("DOMContentLoaded", () => {
+  applyTheme();
+  // Fond décoratif : trois halos qui dérivent lentement et une trame de points (voir style.css)
+  const backdrop = document.createElement("div");
+  backdrop.className = "backdrop";
+  backdrop.setAttribute("aria-hidden", "true");
+  backdrop.innerHTML = "<i></i><i></i><i></i>";
+  document.body.prepend(backdrop);
+});
 systemDark.addEventListener("change", () => applyTheme());
 
 const TOKEN_KEY = "meeting-scribe.token";
@@ -183,8 +191,16 @@ function renderMarkdown(md) {
   return DOMPurify.sanitize(html);
 }
 
-const SPEAKER_COLORS = ["#2f5bd3", "#d9480f", "#2b8a3e", "#ae3ec9", "#e67700", "#0c8599", "#c2255c", "#5c940d"];
+// Palette des intervenants : les deux premières couleurs sont celles de la vidéo de présentation
+const SPEAKER_COLORS = ["#7f73ff", "#e25fd9", "#2fb5a4", "#e3a03f", "#ef6f6c", "#4a9df0", "#73bf5a", "#b27be8"];
 function speakerColor(index) { return SPEAKER_COLORS[index % SPEAKER_COLORS.length]; }
+
+const ICONS = {
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1"/><rect x="13.5" y="5" width="4.5" height="14" rx="1"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+};
 
 function toast(message) {
   const el = document.createElement("div");
@@ -194,19 +210,69 @@ function toast(message) {
   setTimeout(() => el.remove(), 2500);
 }
 
-// Petit indicateur d'état système dans l'en-tête
-async function loadSystemBadge() {
-  try {
-    const sys = await api("system");
-    const gpu = sys.gpu && sys.gpu[0];
-    const parts = [];
-    if (gpu) parts.push(`GPU ${(gpu.memory_used_mb / 1024).toFixed(1)}/${(gpu.memory_total_mb / 1024).toFixed(0)} Go`);
-    if (sys.queue.running) parts.push("1 tâche en cours");
-    if (sys.queue.queued) parts.push(`${sys.queue.queued} en attente`);
-    if (sys.ollama.loaded && sys.ollama.loaded.length) parts.push(`Ollama : ${sys.ollama.loaded.map((m) => m.name).join(", ")}`);
-    if (!sys.hf_token) parts.push("⚠ HF_TOKEN manquant");
-    return parts.join(" · ");
-  } catch {
-    return "";
-  }
+// --- Coquille commune : voyant d'état de l'en-tête et barre latérale des réunions ---------------
+
+const TASK_LABELS = { transcribe: "Transcription en cours", rediarize: "Diarisation en cours", summarize: "Compte rendu en cours" };
+const STATE_LABELS = { error: "Service indisponible", busy: "Traitement en cours", ready: "Prêt" };
+
+// Voyant (error / busy / ready, calculé par l'API) et texte court affiché à sa droite
+function systemStatus(sys) {
+  const status = sys.status || { state: "ready", problems: [], warnings: [] };
+  const gpu = sys.gpu && sys.gpu[0];
+  const parts = [];
+  if (gpu) parts.push(`GPU ${(gpu.memory_used_mb / 1024).toFixed(1)}/${(gpu.memory_total_mb / 1024).toFixed(0)} Go`);
+  if (status.state === "error") parts.push(status.problems[0].split(" : ")[0]);
+  else if (sys.queue.running) parts.push(TASK_LABELS[sys.queue.running.kind] || "Tâche en cours");
+  if (sys.queue.queued) parts.push(`${sys.queue.queued} en attente`);
+  const details = [STATE_LABELS[status.state], ...status.problems, ...status.warnings];
+  if (sys.ollama.loaded && sys.ollama.loaded.length) details.push(`Ollama : ${sys.ollama.loaded.map((m) => m.name).join(", ")}`);
+  return { state: status.state, text: parts.join(" · "), tooltip: details.join("\n") };
+}
+
+// Voyant d'un job dans la barre latérale
+function jobLed(status) {
+  if (isActive(status)) return "busy";
+  return status === "failed" ? "error" : "idle";
+}
+
+function shell(currentId = null) {
+  return {
+    currentId,
+    meetings: [],
+    meetingsTotal: 0,
+    sysInfo: null,
+    status: { state: "", text: "", tooltip: "" },
+    navOpen: false,
+    shellTimer: null,
+
+    async refreshShell() {
+      clearTimeout(this.shellTimer);
+      const [jobs, sys] = await Promise.allSettled([api("jobs?limit=100"), api("system")]);
+      if (jobs.status === "fulfilled") {
+        this.meetings = jobs.value.items;
+        this.meetingsTotal = jobs.value.total;
+      }
+      if (sys.status === "fulfilled") {
+        this.sysInfo = sys.value;
+        this.status = systemStatus(sys.value);
+      } else {
+        this.status = { state: "error", text: "API injoignable", tooltip: sys.reason.message };
+      }
+      const busy = this.status.state === "busy" || this.meetings.some((j) => isActive(j.status));
+      this.shellTimer = setTimeout(() => this.refreshShell(), busy ? 2000 : 15000);
+    },
+  };
+}
+
+// Données Alpine d'une page : la coquille commune, puis les propriétés propres à la page.
+// Les descripteurs sont copiés tels quels pour que les accesseurs (get …) restent calculés.
+function withShell(page, currentId = null) {
+  const data = {};
+  Object.defineProperties(data, Object.getOwnPropertyDescriptors(shell(currentId)));
+  Object.defineProperties(data, Object.getOwnPropertyDescriptors(page));
+  data.init = async function () {
+    await this.refreshShell();
+    if (page.init) await page.init.call(this);
+  };
+  return data;
 }

@@ -21,19 +21,21 @@
         id: new URLSearchParams(location.search).get("id"),
         job: null,
         error: "",
-        sys: "",
         names: {},
-        people: [],
+        expanded: {},
         savingNames: false,
         rediarizeCount: "",
         playing: null,
         sampleAudio: null,
-        tab: "transcript",
         transcript: "",
         transcriptHeader: "",
         transcriptHtml: "",
         editing: false,
         edit: { title: "", meeting_date: "" },
+        // Frise
+        timeline: null,
+        currentTime: 0,
+        hoverT: null,
         // Comptes rendus
         prompts: [],
         ollama: { models: [], default_model: "" },
@@ -42,6 +44,8 @@
         selectedSummary: null,
         summaryForm: { prompt_id: "", meeting_prompt: "", provider: "ollama", model: "", think: false },
         summaryError: "",
+        summaryEditing: false,
+        summaryDraft: "",
         timer: null,
         summaryTimer: null,
 
@@ -53,17 +57,72 @@
         },
         get active() { return this.job && isActive(this.job.status); },
         get completed() { return this.job?.status === "completed"; },
+        get ownerName() { return this.sysInfo?.options?.owner_name || ""; },
         get namesChanged() {
           return (this.job?.speakers || []).some((sp) => (sp.name || "") !== (this.names[sp.id] || "").trim());
         },
         get currentSummary() { return this.summaries.find((s) => s.id === this.selectedSummary) || null; },
         get summaryHtml() { return this.currentSummary?.content ? renderMarkdown(this.currentSummary.content) : ""; },
         get summariesActive() { return this.summaries.some((s) => isActive(s.status)); },
+        get summaryDirty() { return this.summaryEditing && this.summaryDraft !== (this.currentSummary?.content || ""); },
+
+        // Une couleur par nom : deux intervenants fusionnés (même nom) partagent la même
+        get speakerColors() {
+          const colors = {}, byName = {};
+          let n = 0;
+          for (const sp of this.job?.speakers || []) {
+            const key = sp.name || sp.id;
+            if (!(key in byName)) byName[key] = speakerColor(n++);
+            colors[sp.id] = byName[key];
+          }
+          return colors;
+        },
+
+        get legend() {
+          const groups = [];
+          for (const sp of this.job?.speakers || []) {
+            let group = groups.find((g) => g.name === sp.display_name);
+            if (!group) groups.push(group = { name: sp.display_name, color: this.speakerColors[sp.id], talk: 0, share: 0 });
+            group.talk += sp.talk_time;
+            group.share += sp.share;
+          }
+          return groups;
+        },
+
+        // Barres de la frise : hauteur = enveloppe de l'audio, couleur = intervenant qui parle le plus dans l'intervalle
+        get bars() {
+          const tl = this.timeline;
+          if (!tl || !tl.duration) return [];
+          const n = tl.peaks ? tl.peaks.length : 240, step = tl.duration / n, segs = tl.segments;
+          const bars = [];
+          let k = 0;
+          for (let i = 0; i < n; i++) {
+            const a = i * step, b = a + step;
+            while (k < segs.length && segs[k].end <= a) k++;
+            const talk = {};
+            for (let j = k; j < segs.length && segs[j].start < b; j++) {
+              const overlap = Math.min(b, segs[j].end) - Math.max(a, segs[j].start);
+              if (overlap > 0) talk[segs[j].speaker] = (talk[segs[j].speaker] || 0) + overlap;
+            }
+            const speaker = Object.keys(talk).sort((x, y) => talk[y] - talk[x])[0];
+            const level = tl.peaks ? tl.peaks[i] : speaker ? 0.6 : 0.1;
+            bars.push({ h: Math.max(6, level * 100), color: speaker ? this.speakerColors[speaker] : "var(--border)" });
+          }
+          return bars;
+        },
+
+        get hoverLabel() {
+          if (this.hoverT == null || !this.timeline) return "";
+          const seg = this.timeline.segments.find((s) => this.hoverT >= s.start && this.hoverT < s.end);
+          const sp = seg && this.job.speakers.find((x) => x.id === seg.speaker);
+          return fmtTs(this.hoverT) + (sp ? ` · ${sp.display_name}` : "");
+        },
 
         async init() {
           if (!this.id) { this.error = "Identifiant de job manquant."; return; }
           this.sampleAudio = new Audio();
           this.sampleAudio.addEventListener("ended", () => (this.playing = null));
+          window.addEventListener("beforeunload", (e) => { if (this.summaryDirty) e.preventDefault(); });
           await this.load();
           this.loadSummaryOptions();
         },
@@ -74,14 +133,13 @@
           try {
             this.job = await api(`jobs/${this.id}`);
             document.title = `${this.job.display_title} · Meeting Scribe`;
-            this.sys = await loadSystemBadge();
           } catch (e) {
             this.error = e.message;
             return;
           }
           if (this.completed && (!wasCompleted || !this.transcript)) {
             this.names = Object.fromEntries(this.job.speakers.map((sp) => [sp.id, sp.name || ""]));
-            await Promise.all([this.loadTranscript(), this.loadPeople()]);
+            await Promise.all([this.loadTranscript(), this.loadTimeline()]);
           }
           if (this.active) this.timer = setTimeout(() => this.load(), 2000);
         },
@@ -96,13 +154,37 @@
           } catch (e) { this.error = e.message; }
         },
 
-        async loadPeople() {
-          try { this.people = (await api("people")).map((p) => p.name); } catch { /* facultatif */ }
+        async loadTimeline() {
+          try { this.timeline = await api(`jobs/${this.id}/timeline`); } catch { this.timeline = null; /* frise facultative */ }
+        },
+
+        // --- Lecture ---
+        playAt(seconds) {
+          this.sampleAudio.pause();
+          this.playing = null;
+          const player = this.$refs.player;
+          player.currentTime = seconds;
+          player.play();
+        },
+
+        friseTime(event) {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+          return ratio * (this.timeline?.duration || 0);
+        },
+
+        seek(event) {
+          const link = event.target.closest("a.ts");
+          if (!link) return;
+          event.preventDefault();
+          this.playAt(+link.dataset.t);
         },
 
         // --- Intervenants ---
+        sampleKey(sp, sample) { return `${sp.id}-${sample.n}`; },
+
         toggleSample(sp, sample) {
-          const key = `${sp.id}-${sample.n}`;
+          const key = this.sampleKey(sp, sample);
           if (this.playing === key) { this.sampleAudio.pause(); this.playing = null; return; }
           this.$refs.player.pause();
           this.sampleAudio.src = apiUrl(`jobs/${this.id}/speakers/${sp.id}/samples/${sample.n}.mp3`);
@@ -115,7 +197,8 @@
           try {
             await api(`jobs/${this.id}/speakers`, { method: "PUT", json: this.names });
             this.job = await api(`jobs/${this.id}`);
-            await Promise.all([this.loadTranscript(), this.loadPeople()]);
+            await this.loadTranscript();
+            this.refreshShell();
             toast("Noms enregistrés");
           } catch (e) { this.error = e.message; }
           this.savingNames = false;
@@ -128,14 +211,16 @@
           try {
             await api(`jobs/${this.id}/rediarize`, { method: "POST", json: n ? { num_speakers: n } : {} });
             this.transcript = "";
+            this.timeline = null;
             await this.load();
+            this.refreshShell();
           } catch (e) { this.error = e.message; }
         },
 
         // --- Job ---
         async cancel() {
           if (!confirm("Annuler ce job ?")) return;
-          try { await api(`jobs/${this.id}/cancel`, { method: "POST" }); await this.load(); }
+          try { await api(`jobs/${this.id}/cancel`, { method: "POST" }); await this.load(); this.refreshShell(); }
           catch (e) { this.error = e.message; }
         },
 
@@ -157,19 +242,9 @@
             if (this.edit.meeting_date) body.meeting_date = this.edit.meeting_date;
             this.job = await api(`jobs/${this.id}`, { method: "PATCH", json: body });
             this.editing = false;
+            this.refreshShell();
             if (this.completed) await this.loadTranscript();
           } catch (e) { this.error = e.message; }
-        },
-
-        seek(event) {
-          const link = event.target.closest("a.ts");
-          if (!link) return;
-          event.preventDefault();
-          this.sampleAudio.pause();
-          this.playing = null;
-          const player = this.$refs.player;
-          player.currentTime = +link.dataset.t;
-          player.play();
         },
 
         async copyTranscript() {
@@ -180,7 +255,8 @@
         // --- Comptes rendus ---
         async loadSummaryOptions() {
           try {
-            const [prompts, sys, summaries] = await Promise.all([api("prompts"), api("system"), api(`jobs/${this.id}/summaries`)]);
+            const [prompts, sys, summaries] = await Promise.all([
+              api("prompts"), this.sysInfo || api("system"), api(`jobs/${this.id}/summaries`)]);
             this.prompts = prompts;
             this.summaryForm.prompt_id = prompts.length ? prompts[0].id : "";
             this.ollama = sys.ollama;
@@ -201,19 +277,29 @@
           try { this.setSummaries(await api(`jobs/${this.id}/summaries`)); } catch (e) { this.summaryError = e.message; }
         },
 
+        selectSummary(s) {
+          if (s.id === this.selectedSummary) return;
+          if (this.summaryDirty && !confirm("Abandonner les modifications du compte rendu ?")) return;
+          this.summaryEditing = false;
+          this.selectedSummary = s.id;
+        },
+
         providerChanged() {
           this.summaryForm.model = this.summaryForm.provider === "ollama" ? this.ollama.default_model : (this.llmApi.model || "");
         },
 
         async generateSummary() {
           this.summaryError = "";
+          if (this.summaryDirty && !confirm("Abandonner les modifications du compte rendu ?")) return;
           try {
             const body = { ...this.summaryForm };
             if (!body.prompt_id) delete body.prompt_id;
             if (!body.model) delete body.model;
             const created = await api(`jobs/${this.id}/summaries`, { method: "POST", json: body });
+            this.summaryEditing = false;
             this.selectedSummary = created.id;
             await this.refreshSummaries();
+            this.refreshShell();
           } catch (e) { this.summaryError = e.message; }
         },
 
@@ -226,13 +312,42 @@
           if (!confirm("Supprimer ce compte rendu ?")) return;
           try {
             await api(`summaries/${s.id}`, { method: "DELETE" });
-            if (this.selectedSummary === s.id) this.selectedSummary = null;
+            if (this.selectedSummary === s.id) { this.selectedSummary = null; this.summaryEditing = false; }
             await this.refreshSummaries();
           } catch (e) { this.summaryError = e.message; }
         },
 
+        startSummaryEdit() {
+          this.summaryDraft = this.currentSummary.content || "";
+          this.summaryEditing = true;
+        },
+
+        cancelSummaryEdit() {
+          if (this.summaryDirty && !confirm("Abandonner les modifications du compte rendu ?")) return;
+          this.summaryEditing = false;
+        },
+
+        async saveSummaryEdit() {
+          this.summaryError = "";
+          try {
+            await api(`summaries/${this.currentSummary.id}`, { method: "PATCH", json: { content: this.summaryDraft } });
+            this.summaryEditing = false;
+            await this.refreshSummaries();
+            toast("Compte rendu enregistré");
+          } catch (e) { this.summaryError = e.message; }
+        },
+
+        // Le téléchargement sert la version enregistrée : prévenir si l'éditeur contient autre chose
+        guardDownload(event) {
+          if (this.summaryDirty
+              && !confirm("Les modifications ne sont pas enregistrées : télécharger la dernière version enregistrée ?")) {
+            event.preventDefault();
+          }
+        },
+
         async copySummary() {
-          try { await navigator.clipboard.writeText(this.currentSummary.content); toast("Compte rendu copié"); }
+          const text = this.summaryEditing ? this.summaryDraft : this.currentSummary.content;
+          try { await navigator.clipboard.writeText(text); toast("Compte rendu copié"); }
           catch { toast("Copie impossible : utilisez Télécharger"); }
         },
       };
@@ -240,218 +355,303 @@
   </script>
   <script defer src="vendor/alpine.min.js"></script>
 </head>
-<body x-data="jobPage()" x-cloak>
+<body x-data="withShell(jobPage(), new URLSearchParams(location.search).get('id'))" x-cloak>
   <header class="top">
+    <button class="menu-toggle" type="button" @click="navOpen = !navOpen" aria-label="Réunions" x-html="ICONS.menu"></button>
     <a class="brand" href="./"><img class="brand-logo" src="logo-mark.svg" alt=""><span>Meeting <span class="brand-accent">Scribe</span></span></a>
     <nav>
-      <a href="./">Réunions</a>
       <a href="settings.html">Réglages</a>
       <a href="docs" target="_blank">API</a>
     </nav>
-    <span class="sys" x-text="sys"></span>
+    <span class="status" :title="status.tooltip" @click="status.tooltip && toast(status.tooltip)">
+      <span class="led" :class="status.state"></span><span x-text="status.text"></span>
+    </span>
     <button class="theme-toggle small" type="button" onclick="cycleTheme()">Thème</button>
   </header>
 
-  <main>
-    <p class="error" x-show="error" x-text="error"></p>
+  <div class="shell">
+    <aside class="sidebar" :class="{ open: navOpen }">
+      <a class="btn primary new" href="./">+ Nouvelle transcription</a>
+      <div class="side-title">Réunions <span x-show="meetingsTotal" x-text="`(${meetingsTotal})`"></span></div>
+      <p class="hint" x-show="!meetings.length" style="padding:0 8px">Aucune transcription pour l’instant.</p>
+      <template x-for="m in meetings" :key="m.id">
+        <a class="meeting" :class="{ current: m.id === currentId }" :href="`job.html?id=${m.id}`" :title="m.display_title">
+          <span class="led sm" :class="jobLed(m.status)"></span>
+          <span class="m-body">
+            <span class="m-title" x-text="m.display_title"></span>
+            <span class="m-meta" x-text="isActive(m.status)
+              ? statusLabel(m.status) + (m.queue_position ? ` · position ${m.queue_position}` : '')
+              : `${fmtDate(m.meeting_date || m.created_at)} · ${fmtDuration(m.duration)}`"></span>
+            <template x-if="isActive(m.status) && m.status !== 'queued'">
+              <div class="progress"><div :style="`width:${m.progress}%`"></div></div>
+            </template>
+          </span>
+        </a>
+      </template>
+    </aside>
+    <div class="sidebar-overlay" :class="{ open: navOpen }" @click="navOpen = false"></div>
 
-    <template x-if="job">
-      <div>
-        <!-- En-tête du job -->
-        <section class="card">
-          <template x-if="!editing">
-            <div class="row" style="align-items:flex-start">
-              <div style="flex:1; min-width:0">
-                <h1 x-text="job.display_title"></h1>
-                <div class="meta">
-                  <span x-text="fmtDate(job.meeting_date || job.created_at)"></span>
-                  <span x-text="fmtDuration(job.duration)"></span>
-                  <span x-text="job.source_name || job.source_url"></span>
-                  <span x-text="`${job.model} · ${job.language} · ${job.device === 'cuda' ? 'GPU' : 'CPU'}`"></span>
-                </div>
-              </div>
-              <button class="small" @click="startEdit()">Modifier</button>
-              <button class="small" x-show="active" @click="cancel()">Annuler</button>
-              <button class="small danger" x-show="!active" @click="remove()">Supprimer</button>
-            </div>
-          </template>
-          <template x-if="editing">
-            <div class="grid cols-2">
-              <div><label>Titre</label><input type="text" x-model="edit.title" placeholder="nom du fichier par défaut"></div>
-              <div><label>Date de la réunion</label><input type="datetime-local" x-model="edit.meeting_date"></div>
-              <div class="row"><button class="primary" @click="saveEdit()">Enregistrer</button><button @click="editing = false">Annuler</button></div>
-            </div>
-          </template>
+    <main>
+      <p class="error" x-show="error" x-text="error"></p>
 
-          <template x-if="!completed">
-            <div>
-              <div class="steps">
-                <template x-for="step in steps" :key="step.name">
-                  <span :class="step.state" x-text="step.label"></span>
-                </template>
-              </div>
-              <template x-if="active && job.status !== 'queued'">
-                <div class="row">
-                  <div class="progress" style="flex:1"><div :style="`width:${job.progress}%`"></div></div>
-                  <span class="hint" x-text="`${Math.round(job.progress)} %`"></span>
-                </div>
-              </template>
-              <p class="hint" x-show="job.queue_position" x-text="`Position dans la file : ${job.queue_position}`"></p>
-            </div>
-          </template>
-          <p class="error" x-show="job.error" x-text="job.error" style="margin-top:12px"></p>
-        </section>
-
-        <!-- Intervenants -->
-        <section class="card" x-show="completed">
-          <h2>Intervenants <small>— écoutez les extraits et nommez chaque voix ; un même nom fusionne les intervenants</small></h2>
-          <datalist id="people">
-            <template x-for="p in people" :key="p"><option :value="p"></option></template>
-          </datalist>
-          <p class="hint" x-show="!job.speakers.length">
-            Aucune voix détectée par la diarisation. Si l'enregistrement contient bien de la parole, essayez
-            « Relancer la diarisation » avec un nombre d'intervenants imposé.
-          </p>
-          <div class="speakers-grid">
-            <template x-for="(sp, i) in job.speakers" :key="sp.id">
-              <div class="speaker">
-                <header>
-                  <span class="dot" :style="`background:${speakerColor(i)}`"></span>
-                  <strong x-text="sp.display_name"></strong>
-                  <span class="spacer"></span>
-                  <span class="hint" x-text="`${fmtDuration(sp.talk_time)} · ${Math.round(sp.share * 100)} %`"></span>
-                </header>
-                <div class="share"><div :style="`width:${sp.share * 100}%; background:${speakerColor(i)}`"></div></div>
-                <template x-for="sample in sp.samples" :key="sample.n">
-                  <div class="sample">
-                    <button @click="toggleSample(sp, sample)" :title="`${fmtTs(sample.start)} – ${fmtTs(sample.end)}`"
-                            x-text="playing === `${sp.id}-${sample.n}` ? '❚❚' : '▶'"></button>
-                    <p x-text="`« ${sample.text} »`"></p>
+      <template x-if="job">
+        <div>
+          <!-- En-tête du job -->
+          <section class="card">
+            <template x-if="!editing">
+              <div class="row" style="align-items:flex-start">
+                <div style="flex:1; min-width:0">
+                  <h1 x-text="job.display_title"></h1>
+                  <div class="meta">
+                    <span x-text="fmtDate(job.meeting_date || job.created_at)"></span>
+                    <span x-text="fmtDuration(job.duration)"></span>
+                    <span x-text="job.source_name || job.source_url"></span>
+                    <span x-text="`${job.model} · ${job.language} · ${job.device === 'cuda' ? 'GPU' : 'CPU'}`"></span>
                   </div>
-                </template>
-                <p class="hint" x-show="!sp.samples.length">Aucun extrait exploitable (intervention trop courte).</p>
-                <input type="text" list="people" style="margin-top:8px" :placeholder="`Nom de ${sp.display_name}`"
-                       x-model="names[sp.id]" @keydown.enter="saveNames()">
+                </div>
+                <button class="small" @click="startEdit()">Modifier</button>
+                <button class="small" x-show="active" @click="cancel()">Annuler</button>
+                <button class="small danger" x-show="!active" @click="remove()">Supprimer</button>
               </div>
             </template>
-          </div>
-          <div class="row" style="margin-top:16px">
-            <button class="primary" @click="saveNames()" :disabled="savingNames || !namesChanged">Enregistrer les noms</button>
-            <span class="spacer"></span>
-            <label style="margin:0">Mauvais nombre de voix ?</label>
-            <input type="number" min="1" max="30" style="width:90px" placeholder="auto" x-model="rediarizeCount">
-            <button @click="rediarize()">Relancer la diarisation</button>
-          </div>
-        </section>
-
-        <!-- Transcript et comptes rendus -->
-        <section class="card" x-show="completed">
-          <div class="tabs">
-            <button :class="{ active: tab === 'transcript' }" @click="tab = 'transcript'">Transcript</button>
-            <button :class="{ active: tab === 'summary' }" @click="tab = 'summary'">
-              Compte rendu <span x-show="summaries.length" x-text="`(${summaries.length})`"></span>
-            </button>
-          </div>
-
-          <div x-show="tab === 'transcript'">
-            <div class="row" style="margin-bottom:12px">
-              <a class="btn primary" :href="apiUrl(`jobs/${id}/transcript.md`, { download: 'true' })">Télécharger .md</a>
-              <button @click="copyTranscript()">Copier</button>
-              <a class="btn" :href="apiUrl(`jobs/${id}/transcript.json`)" target="_blank">JSON</a>
-              <span class="spacer"></span>
-              <span class="hint">Cliquez sur un horodatage pour écouter le passage.</span>
-            </div>
-            <details class="frontmatter"><summary>En-tête YAML</summary><pre><code x-text="transcriptHeader"></code></pre></details>
-            <div class="markdown" x-html="transcriptHtml" @click="seek($event)"></div>
-          </div>
-
-          <div x-show="tab === 'summary'">
-            <div class="grid cols-2">
-              <div>
-                <label>Prompt système</label>
-                <select x-model="summaryForm.prompt_id">
-                  <template x-for="p in prompts" :key="p.id">
-                    <option :value="p.id" x-text="p.name + (p.is_default ? ' (par défaut)' : '')"></option>
-                  </template>
-                </select>
-                <p class="hint"><a href="settings.html">Modifier les prompts</a></p>
-              </div>
+            <template x-if="editing">
               <div class="grid cols-2">
-                <div>
-                  <label>Fournisseur</label>
-                  <select x-model="summaryForm.provider" @change="providerChanged()">
-                    <option value="ollama">Ollama (local)</option>
-                    <option value="openai" :disabled="!llmApi.configured">API compatible OpenAI</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Modèle</label>
-                  <template x-if="summaryForm.provider === 'ollama'">
-                    <select x-model="summaryForm.model">
-                      <template x-for="m in ollama.models || []" :key="m"><option :value="m" x-text="m"></option></template>
-                    </select>
-                  </template>
-                  <template x-if="summaryForm.provider !== 'ollama'">
-                    <input type="text" x-model="summaryForm.model">
-                  </template>
-                </div>
+                <div><label>Titre</label><input type="text" x-model="edit.title" placeholder="nom du fichier par défaut"></div>
+                <div><label>Date de la réunion</label><input type="datetime-local" x-model="edit.meeting_date"></div>
+                <div class="row"><button class="primary" @click="saveEdit()">Enregistrer</button><button @click="editing = false">Annuler</button></div>
               </div>
-            </div>
-            <div style="margin-top:12px">
-              <label>Consignes propres à cette réunion</label>
-              <textarea rows="3" x-model="summaryForm.meeting_prompt"
-                        placeholder="Ex. Réunion commerciale avec le client X ; mets en avant les objections et les prochaines étapes."></textarea>
-            </div>
-            <div class="row" style="margin-top:12px">
-              <button class="primary" @click="generateSummary()">Générer le compte rendu</button>
-              <label class="row" style="margin:0" x-show="summaryForm.provider === 'ollama'">
-                <input type="checkbox" x-model="summaryForm.think"> Mode réflexion (plus lent)
-              </label>
-            </div>
-            <p class="error" x-show="summaryError" x-text="summaryError" style="margin-top:12px"></p>
+            </template>
 
-            <template x-if="summaries.length">
-              <div style="margin-top:20px">
-                <template x-for="s in summaries" :key="s.id">
-                  <div class="list-item row" :class="{ active: s.id === selectedSummary }" @click="selectedSummary = s.id">
-                    <span class="badge" :class="statusClass(s.status)" x-text="statusLabel(s.status)"></span>
-                    <span x-text="fmtDate(s.created_at)"></span>
-                    <span class="hint" x-text="`${s.model} · ${s.prompt_name}`"></span>
-                    <span class="spacer"></span>
-                    <button class="small" x-show="isActive(s.status)" @click.stop="cancelSummary(s)">Annuler</button>
-                    <button class="small danger" x-show="!isActive(s.status)" @click.stop="deleteSummary(s)">Supprimer</button>
+            <template x-if="!completed">
+              <div>
+                <div class="steps">
+                  <template x-for="step in steps" :key="step.name">
+                    <span :class="step.state" x-text="step.label"></span>
+                  </template>
+                </div>
+                <template x-if="active && job.status !== 'queued'">
+                  <div class="row">
+                    <div class="progress" style="flex:1"><div :style="`width:${job.progress}%`"></div></div>
+                    <span class="hint" x-text="`${Math.round(job.progress)} %`"></span>
                   </div>
                 </template>
-                <template x-if="currentSummary">
-                  <div style="margin-top:12px">
-                    <p class="hint" x-show="isActive(currentSummary.status)">
-                      Génération en cours… (un transcript d'1 h 30 peut demander plusieurs minutes)
-                    </p>
-                    <p class="error" x-show="currentSummary.error" x-text="currentSummary.error"></p>
-                    <template x-if="currentSummary.status === 'completed'">
-                      <div>
-                        <div class="row" style="margin-bottom:12px">
-                          <a class="btn primary" :href="apiUrl(`summaries/${currentSummary.id}.md`, { download: 'true' })">Télécharger .md</a>
-                          <button @click="copySummary()">Copier</button>
-                          <span class="spacer"></span>
-                          <span class="hint" x-show="currentSummary.prompt_tokens"
-                                x-text="`${currentSummary.prompt_tokens} tokens en entrée, ${currentSummary.completion_tokens} en sortie`"></span>
-                        </div>
-                        <div class="markdown" x-html="summaryHtml"></div>
-                      </div>
+                <p class="hint" x-show="job.queue_position" x-text="`Position dans la file : ${job.queue_position}`"></p>
+              </div>
+            </template>
+            <p class="error" x-show="job.error" x-text="job.error" style="margin-top:12px"></p>
+          </section>
+
+          <!-- Intervenants -->
+          <details class="card section" open x-show="completed">
+            <summary>
+              <h2>Intervenants</h2>
+              <span class="hint">écoutez les extraits et nommez chaque voix ; un même nom fusionne les intervenants</span>
+            </summary>
+            <div class="section-body">
+              <datalist id="people">
+                <template x-if="ownerName"><option :value="ownerName"></option></template>
+              </datalist>
+
+              <!-- Frise de l'enregistrement -->
+              <template x-if="bars.length">
+                <div class="frise-wrap">
+                  <div class="frise" @click="playAt(friseTime($event))"
+                       @mousemove="hoverT = friseTime($event)" @mouseleave="hoverT = null">
+                    <template x-for="(bar, i) in bars" :key="i">
+                      <div class="bar" :style="`height:${bar.h}%; background:${bar.color}`"></div>
+                    </template>
+                    <div class="hover-line" x-show="hoverT != null" :style="`left:${hoverT / timeline.duration * 100}%`"></div>
+                    <div class="playhead" x-show="currentTime > 0" :style="`left:${currentTime / timeline.duration * 100}%`"></div>
+                  </div>
+                  <div class="frise-axis">
+                    <span>00:00:00</span>
+                    <span class="readout" x-text="hoverLabel || (currentTime > 0 ? fmtTs(currentTime) : 'Cliquez sur la frise pour écouter')"></span>
+                    <span x-text="fmtTs(timeline.duration)"></span>
+                  </div>
+                  <div class="legend">
+                    <template x-for="g in legend" :key="g.name">
+                      <span><i :style="`background:${g.color}`"></i><span x-text="`${g.name} · ${fmtDuration(g.talk)} · ${Math.round(g.share * 100)} %`"></span></span>
                     </template>
                   </div>
+                </div>
+              </template>
+
+              <p class="hint" x-show="!job.speakers.length">
+                Aucune voix détectée par la diarisation. Si l’enregistrement contient bien de la parole, essayez
+                « Relancer la diarisation » avec un nombre d’intervenants imposé.
+              </p>
+              <div class="speakers-grid">
+                <template x-for="sp in job.speakers" :key="sp.id">
+                  <div class="speaker" :class="{ open: expanded[sp.id] }">
+                    <div class="sp-head">
+                      <span class="dot" :style="`background:${speakerColors[sp.id]}`"></span>
+                      <input type="text" class="sp-name" list="people" :placeholder="sp.display_name" :title="`Nom de ${sp.display_name}`"
+                             :class="{ changed: (names[sp.id] || '').trim() !== (sp.name || '') }"
+                             x-model="names[sp.id]" @keydown.enter="saveNames()">
+                      <span class="stat" x-text="`${fmtDuration(sp.talk_time)} · ${Math.round(sp.share * 100)} %`"></span>
+                      <template x-if="sp.samples.length">
+                        <button class="icon" :class="{ playing: playing === sampleKey(sp, sp.samples[0]) }"
+                                :title="`Écouter un extrait (${fmtTs(sp.samples[0].start)})`"
+                                @click="toggleSample(sp, sp.samples[0])"
+                                x-html="playing === sampleKey(sp, sp.samples[0]) ? ICONS.pause : ICONS.play"></button>
+                      </template>
+                      <button class="icon ghost chevron" :title="expanded[sp.id] ? 'Masquer les extraits' : 'Voir les extraits'"
+                              @click="expanded[sp.id] = !expanded[sp.id]" x-html="ICONS.chevron"></button>
+                    </div>
+                    <div class="share"><div :style="`width:${sp.share * 100}%; background:${speakerColors[sp.id]}`"></div></div>
+                    <div class="samples" x-show="expanded[sp.id]">
+                      <template x-for="sample in sp.samples" :key="sample.n">
+                        <div class="sample">
+                          <button class="icon" :class="{ playing: playing === sampleKey(sp, sample) }"
+                                  @click="toggleSample(sp, sample)"
+                                  x-html="playing === sampleKey(sp, sample) ? ICONS.pause : ICONS.play"></button>
+                          <p><span class="ts" x-text="`${fmtTs(sample.start)} – ${fmtTs(sample.end)}`"></span><br>
+                             <span x-text="`« ${sample.text} »`"></span></p>
+                        </div>
+                      </template>
+                      <p class="hint" x-show="!sp.samples.length">Aucun extrait exploitable (intervention trop courte).</p>
+                    </div>
+                  </div>
                 </template>
               </div>
-            </template>
-          </div>
-        </section>
-      </div>
-    </template>
-  </main>
+              <div class="row" style="margin-top:16px">
+                <button class="primary" @click="saveNames()" :disabled="savingNames || !namesChanged">Enregistrer les noms</button>
+                <span class="spacer"></span>
+                <label style="margin:0">Mauvais nombre de voix ?</label>
+                <input type="number" min="1" max="30" style="width:90px" placeholder="auto" x-model="rediarizeCount">
+                <button @click="rediarize()">Relancer la diarisation</button>
+              </div>
+            </div>
+          </details>
 
-  <div class="player" x-show="completed">
-    <audio x-ref="player" controls preload="none" :src="job ? apiUrl(`jobs/${id}/audio`) : ''"></audio>
+          <!-- Compte rendu -->
+          <details class="card section" open x-show="completed">
+            <summary>
+              <h2>Compte rendu</h2>
+              <span class="hint" x-show="summaries.length" x-text="summaries.length > 1 ? `${summaries.length} versions` : '1 version'"></span>
+            </summary>
+            <div class="section-body">
+              <div class="grid cols-2">
+                <div>
+                  <label>Prompt système</label>
+                  <select x-model="summaryForm.prompt_id">
+                    <template x-for="p in prompts" :key="p.id">
+                      <option :value="p.id" x-text="p.name + (p.is_default ? ' (par défaut)' : '')"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="grid cols-2">
+                  <div>
+                    <label>Fournisseur</label>
+                    <select x-model="summaryForm.provider" @change="providerChanged()">
+                      <option value="ollama">Ollama (local)</option>
+                      <option value="openai" :disabled="!llmApi.configured">API compatible OpenAI</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Modèle</label>
+                    <template x-if="summaryForm.provider === 'ollama'">
+                      <select x-model="summaryForm.model">
+                        <template x-for="m in ollama.models || []" :key="m"><option :value="m" x-text="m" :selected="m === summaryForm.model"></option></template>
+                      </select>
+                    </template>
+                    <template x-if="summaryForm.provider !== 'ollama'">
+                      <input type="text" x-model="summaryForm.model">
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div style="margin-top:12px">
+                <label>Consignes propres à cette réunion</label>
+                <textarea rows="3" x-model="summaryForm.meeting_prompt"
+                          placeholder="Ex. Réunion commerciale avec le client X ; mets en avant les objections et les prochaines étapes."></textarea>
+              </div>
+              <div class="row" style="margin-top:12px">
+                <button class="primary" @click="generateSummary()">Générer le compte rendu</button>
+                <label class="row" style="margin:0" x-show="summaryForm.provider === 'ollama'">
+                  <input type="checkbox" x-model="summaryForm.think"> Mode réflexion (plus lent)
+                </label>
+              </div>
+              <p class="error" x-show="summaryError" x-text="summaryError" style="margin-top:12px"></p>
+
+              <template x-if="summaries.length">
+                <div style="margin-top:20px">
+                  <template x-for="s in summaries" :key="s.id">
+                    <div class="list-item row" :class="{ active: s.id === selectedSummary }" @click="selectSummary(s)">
+                      <span class="badge" :class="statusClass(s.status)" x-text="statusLabel(s.status)"></span>
+                      <span x-text="fmtDate(s.created_at)"></span>
+                      <span class="hint" x-text="`${s.model} · ${s.prompt_name}`"></span>
+                      <span class="spacer"></span>
+                      <button class="small" x-show="isActive(s.status)" @click.stop="cancelSummary(s)">Annuler</button>
+                      <button class="small danger" x-show="!isActive(s.status)" @click.stop="deleteSummary(s)">Supprimer</button>
+                    </div>
+                  </template>
+                  <template x-if="currentSummary">
+                    <div style="margin-top:12px">
+                      <p class="hint" x-show="isActive(currentSummary.status)">
+                        Génération en cours… (un transcript d’1 h 30 peut demander plusieurs minutes)
+                      </p>
+                      <p class="error" x-show="currentSummary.error" x-text="currentSummary.error"></p>
+                      <template x-if="currentSummary.status === 'completed'">
+                        <div>
+                          <div class="row" style="margin-bottom:12px">
+                            <template x-if="!summaryEditing">
+                              <div class="row">
+                                <a class="btn primary" :href="apiUrl(`summaries/${currentSummary.id}.md`, { download: 'true' })">Télécharger .md</a>
+                                <button @click="copySummary()">Copier</button>
+                                <button @click="startSummaryEdit()">Modifier</button>
+                              </div>
+                            </template>
+                            <template x-if="summaryEditing">
+                              <div class="row">
+                                <button class="primary" @click="saveSummaryEdit()" :disabled="!summaryDirty">Enregistrer</button>
+                                <button @click="cancelSummaryEdit()">Annuler</button>
+                                <a class="btn" :href="apiUrl(`summaries/${currentSummary.id}.md`, { download: 'true' })"
+                                   @click="guardDownload($event)">Télécharger .md</a>
+                              </div>
+                            </template>
+                            <span class="spacer"></span>
+                            <span class="hint" x-show="!summaryEditing && currentSummary.prompt_tokens"
+                                  x-text="`${currentSummary.prompt_tokens} tokens en entrée, ${currentSummary.completion_tokens} en sortie`"></span>
+                            <span class="hint" x-show="summaryEditing">Markdown ; l’en-tête YAML est ajouté au téléchargement.</span>
+                          </div>
+                          <textarea class="md-editor mono" x-show="summaryEditing" x-model="summaryDraft" spellcheck="true"></textarea>
+                          <div class="markdown" x-show="!summaryEditing" x-html="summaryHtml"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </details>
+
+          <!-- Transcript (replié par défaut) -->
+          <details class="card section" x-show="completed">
+            <summary>
+              <h2>Transcript</h2>
+              <span class="hint">Markdown horodaté, regroupé par intervenant</span>
+            </summary>
+            <div class="section-body">
+              <div class="row" style="margin-bottom:12px">
+                <a class="btn primary" :href="apiUrl(`jobs/${id}/transcript.md`, { download: 'true' })">Télécharger .md</a>
+                <button @click="copyTranscript()">Copier</button>
+                <a class="btn" :href="apiUrl(`jobs/${id}/transcript.json`)" target="_blank">JSON</a>
+                <span class="spacer"></span>
+                <span class="hint">Cliquez sur un horodatage pour écouter le passage.</span>
+              </div>
+              <details class="frontmatter"><summary>En-tête YAML</summary><pre><code x-text="transcriptHeader"></code></pre></details>
+              <div class="markdown" x-html="transcriptHtml" @click="seek($event)"></div>
+            </div>
+          </details>
+        </div>
+      </template>
+
+      <div class="player" x-show="completed">
+        <audio x-ref="player" controls preload="none" :src="job ? apiUrl(`jobs/${id}/audio`) : ''"
+               @timeupdate="currentTime = $event.target.currentTime"></audio>
+      </div>
+    </main>
   </div>
 </body>
 </html>

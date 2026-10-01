@@ -20,13 +20,13 @@
         selected: null,
         draft: { name: "", content: "", is_default: false },
         dirty: false,
-        system: null,
-        sys: "",
         token: getToken(),
         error: "",
 
+        get system() { return this.sysInfo; },
+
         async init() {
-          await Promise.all([this.loadPrompts(), this.loadSystem()]);
+          await this.loadPrompts();
         },
 
         async loadPrompts(selectId) {
@@ -35,11 +35,6 @@
             const target = this.prompts.find((p) => p.id === (selectId || this.selected)) || this.prompts[0];
             if (target) this.select(target, true);
           } catch (e) { this.error = e.message; }
-        },
-
-        async loadSystem() {
-          try { this.system = await api("system"); this.sys = await loadSystemBadge(); }
-          catch (e) { this.error = e.message; }
         },
 
         select(p, force = false) {
@@ -81,82 +76,107 @@
   </script>
   <script defer src="vendor/alpine.min.js"></script>
 </head>
-<body x-data="settingsPage()" x-cloak>
+<body x-data="withShell(settingsPage())" x-cloak>
   <header class="top">
+    <button class="menu-toggle" type="button" @click="navOpen = !navOpen" aria-label="Réunions" x-html="ICONS.menu"></button>
     <a class="brand" href="./"><img class="brand-logo" src="logo-mark.svg" alt=""><span>Meeting <span class="brand-accent">Scribe</span></span></a>
     <nav>
-      <a href="./">Réunions</a>
       <a href="settings.html" class="active">Réglages</a>
       <a href="docs" target="_blank">API</a>
     </nav>
-    <span class="sys" x-text="sys"></span>
+    <span class="status" :title="status.tooltip" @click="status.tooltip && toast(status.tooltip)">
+      <span class="led" :class="status.state"></span><span x-text="status.text"></span>
+    </span>
     <button class="theme-toggle small" type="button" onclick="cycleTheme()">Thème</button>
   </header>
 
-  <main>
-    <p class="error" x-show="error" x-text="error"></p>
+  <div class="shell">
+    <aside class="sidebar" :class="{ open: navOpen }">
+      <a class="btn primary new" href="./">+ Nouvelle transcription</a>
+      <div class="side-title">Réunions <span x-show="meetingsTotal" x-text="`(${meetingsTotal})`"></span></div>
+      <p class="hint" x-show="!meetings.length" style="padding:0 8px">Aucune transcription pour l’instant.</p>
+      <template x-for="m in meetings" :key="m.id">
+        <a class="meeting" :class="{ current: m.id === currentId }" :href="`job.html?id=${m.id}`" :title="m.display_title">
+          <span class="led sm" :class="jobLed(m.status)"></span>
+          <span class="m-body">
+            <span class="m-title" x-text="m.display_title"></span>
+            <span class="m-meta" x-text="isActive(m.status)
+              ? statusLabel(m.status) + (m.queue_position ? ` · position ${m.queue_position}` : '')
+              : `${fmtDate(m.meeting_date || m.created_at)} · ${fmtDuration(m.duration)}`"></span>
+            <template x-if="isActive(m.status) && m.status !== 'queued'">
+              <div class="progress"><div :style="`width:${m.progress}%`"></div></div>
+            </template>
+          </span>
+        </a>
+      </template>
+    </aside>
+    <div class="sidebar-overlay" :class="{ open: navOpen }" @click="navOpen = false"></div>
 
-    <section class="card">
-      <h2>Prompts système des comptes rendus</h2>
-      <div class="grid" style="grid-template-columns: minmax(180px, 240px) 1fr">
-        <div>
-          <template x-for="p in prompts" :key="p.id">
-            <div class="list-item" :class="{ active: p.id === selected }" @click="select(p)">
-              <div x-text="p.name"></div>
-              <div class="hint" x-show="p.is_default">par défaut</div>
+    <main>
+      <p class="error" x-show="error" x-text="error"></p>
+
+      <section class="card">
+        <h2>Prompts système des comptes rendus</h2>
+        <div class="grid" style="grid-template-columns: minmax(180px, 240px) 1fr">
+          <div>
+            <template x-for="p in prompts" :key="p.id">
+              <div class="list-item" :class="{ active: p.id === selected }" @click="select(p)">
+                <div x-text="p.name"></div>
+                <div class="hint" x-show="p.is_default">par défaut</div>
+              </div>
+            </template>
+            <button class="small" @click="select(null)">+ Nouveau prompt</button>
+          </div>
+          <div>
+            <label>Nom</label>
+            <input type="text" x-model="draft.name" @input="dirty = true">
+            <label style="margin-top:12px">Contenu (message système envoyé au LLM avant la transcription)</label>
+            <textarea rows="18" x-model="draft.content" @input="dirty = true" style="font-family: ui-monospace, monospace; font-size: 13px"></textarea>
+            <div class="row" style="margin-top:12px">
+              <label class="row" style="margin:0"><input type="checkbox" x-model="draft.is_default" @change="dirty = true"> Prompt par défaut</label>
+              <span class="spacer"></span>
+              <button class="danger" x-show="selected && prompts.length > 1" @click="remove()">Supprimer</button>
+              <button class="primary" @click="save()" :disabled="!draft.name.trim() || !draft.content.trim()">Enregistrer</button>
             </div>
-          </template>
-          <button class="small" @click="select(null)">+ Nouveau prompt</button>
-        </div>
-        <div>
-          <label>Nom</label>
-          <input type="text" x-model="draft.name" @input="dirty = true">
-          <label style="margin-top:12px">Contenu (message système envoyé au LLM avant la transcription)</label>
-          <textarea rows="18" x-model="draft.content" @input="dirty = true" style="font-family: ui-monospace, monospace; font-size: 13px"></textarea>
-          <div class="row" style="margin-top:12px">
-            <label class="row" style="margin:0"><input type="checkbox" x-model="draft.is_default" @change="dirty = true"> Prompt par défaut</label>
-            <span class="spacer"></span>
-            <button class="danger" x-show="selected && prompts.length > 1" @click="remove()">Supprimer</button>
-            <button class="primary" @click="save()" :disabled="!draft.name.trim() || !draft.content.trim()">Enregistrer</button>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card">
-      <h2>Système</h2>
-      <template x-if="system">
-        <div class="table-wrap">
-          <table>
-            <tbody>
-              <tr><th>GPU</th><td>
-                <template x-for="g in system.gpu || []" :key="g.name">
-                  <span x-text="`${g.name} — ${(g.memory_used_mb / 1024).toFixed(1)} / ${(g.memory_total_mb / 1024).toFixed(1)} Go utilisés`"></span>
-                </template>
-                <span x-show="!system.gpu" class="hint">non détecté</span>
-              </td></tr>
-              <tr><th>Ollama</th><td>
-                <span x-text="system.ollama.reachable ? `${system.ollama.url} (v${system.ollama.version})` : `injoignable : ${system.ollama.error || ''}`"></span>
-                <div class="hint" x-show="system.ollama.loaded?.length" x-text="`Chargé : ${(system.ollama.loaded || []).map((m) => m.name).join(', ')}`"></div>
-                <div class="hint" x-text="`Modèle par défaut : ${system.ollama.default_model}`"></div>
-              </td></tr>
-              <tr><th>API LLM</th><td x-text="system.llm_api.configured ? `${system.llm_api.base_url} — ${system.llm_api.model}` : 'non configurée (LLM_API_BASE_URL, LLM_API_MODEL)'"></td></tr>
-              <tr><th>Jeton Hugging Face</th><td x-text="system.hf_token ? 'présent' : 'absent : la diarisation échouera'"></td></tr>
-              <tr><th>File d'attente</th><td x-text="`${system.queue.running ? '1 tâche en cours' : 'aucune tâche en cours'}, ${system.queue.queued} en attente`"></td></tr>
-              <tr><th>Versions</th><td class="hint" x-text="Object.entries(system.versions).map(([k, v]) => `${k} ${v || '—'}`).join(' · ') + ` · meeting-scribe ${system.version}`"></td></tr>
-            </tbody>
-          </table>
+      <section class="card">
+        <h2>Système</h2>
+        <template x-if="system">
+          <div class="table-wrap">
+            <table>
+              <tbody>
+                <tr><th>GPU</th><td>
+                  <template x-for="g in system.gpu || []" :key="g.name">
+                    <span x-text="`${g.name} — ${(g.memory_used_mb / 1024).toFixed(1)} / ${(g.memory_total_mb / 1024).toFixed(1)} Go utilisés`"></span>
+                  </template>
+                  <span x-show="!system.gpu" class="hint">non détecté</span>
+                </td></tr>
+                <tr><th>Ollama</th><td>
+                  <span x-text="system.ollama.reachable ? `${system.ollama.url} (v${system.ollama.version})` : `injoignable : ${system.ollama.error || ''}`"></span>
+                  <div class="hint" x-show="system.ollama.loaded?.length" x-text="`Chargé : ${(system.ollama.loaded || []).map((m) => m.name).join(', ')}`"></div>
+                  <div class="hint" x-text="`Modèle par défaut : ${system.ollama.default_model}`"></div>
+                </td></tr>
+                <tr><th>API LLM</th><td x-text="system.llm_api.configured ? `${system.llm_api.base_url} — ${system.llm_api.model}` : 'non configurée (LLM_API_BASE_URL, LLM_API_MODEL)'"></td></tr>
+                <tr><th>Jeton Hugging Face</th><td x-text="system.hf_token ? 'présent' : 'absent : la diarisation échouera'"></td></tr>
+                <tr><th>File d'attente</th><td x-text="`${system.queue.running ? '1 tâche en cours' : 'aucune tâche en cours'}, ${system.queue.queued} en attente`"></td></tr>
+                <tr><th>Versions</th><td class="hint" x-text="Object.entries(system.versions).map(([k, v]) => `${k} ${v || '—'}`).join(' · ') + ` · meeting-scribe ${system.version}`"></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </section>
+
+      <section class="card">
+        <h2>Jeton d'API <small>— seulement si API_TOKEN est défini sur le serveur</small></h2>
+        <div class="row">
+          <input type="password" x-model="token" placeholder="vide = pas de jeton" style="flex:1">
+          <button @click="saveToken()">Enregistrer dans ce navigateur</button>
         </div>
-      </template>
-    </section>
-
-    <section class="card">
-      <h2>Jeton d'API <small>— seulement si API_TOKEN est défini sur le serveur</small></h2>
-      <div class="row">
-        <input type="password" x-model="token" placeholder="vide = pas de jeton" style="flex:1">
-        <button @click="saveToken()">Enregistrer dans ce navigateur</button>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
+  </div>
 </body>
 </html>
