@@ -141,6 +141,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 - **Base `ubuntu:24.04` plutôt que `nvidia/cuda`.** CUDA, cuDNN et cuBLAS viennent des roues pip de torch (index `pytorch-cu128`).
   - `LD_LIBRARY_PATH` pointe sur `site-packages/nvidia/{cudnn,cublas}/lib` pour que ctranslate2, utilisé par faster-whisper, les trouve.
 - **`libpython3.12t64`** : torchcodec, utilisé par pyannote 4, en a besoin. Sans elle, avertissement puis échec du décodage audio.
+- **Pas de torchcodec sur Linux arm64** (`override-dependencies` dans `pyproject.toml`) : la version 0.7, liée à torch 2.8, n'a pas de roue arm64. pyannote s'en passe, car l'audio lui est passé déjà décodé (vérifié : diarisation identique sans torchcodec). Ne jamais lui passer un chemin de fichier. À revoir en passant à torch 2.9 ou plus, dont les torchcodec ont des roues arm64.
 - **Utilisateur `ubuntu` (uid 1000)** : `./data` et `./models` appartiennent à l'utilisateur de l'hôte, pas à root.
 - **Caches** : `HF_HOME`, `TORCH_HOME` et `MPLCONFIGDIR` sont tous sous `/models`, donc persistants.
 - **uv 0.11** et **Deno** sont copiés depuis leurs images officielles.
