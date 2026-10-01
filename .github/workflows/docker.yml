@@ -1,0 +1,144 @@
+# Tests, puis construction et publication des images sur GHCR :
+#   ghcr.io/<dépôt>:cuda  (linux/amd64, GPU NVIDIA)
+#   ghcr.io/<dépôt>:cpu   (linux/amd64 et linux/arm64)
+# Déclenchement : tag vX.Y.Z (étiquettes :cuda, :cpu, :X.Y.Z-cuda, :X.Y.Z-cpu),
+# ou manuel (étiquettes <branche>-cuda et <branche>-cpu, pour essai).
+# Secret de dépôt requis : HF_TOKEN (lecture, conditions de pyannote/speaker-diarization-community-1
+# acceptées), pour embarquer le modèle de diarisation dans les images.
+name: Images Docker
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: uv sync --frozen
+      - run: uv run pytest -q
+
+  cuda:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      # L'image CUDA dépasse 13 Go : libérer le disque du runner
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=cuda,enable=${{ env.RELEASE }}
+            type=semver,pattern={{version}},suffix=-cuda
+            type=ref,event=branch,suffix=-cuda
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          build-args: |
+            FLAVOR=cuda
+            DEFAULT_DEVICE=cuda
+            DEFAULT_MODEL=large-v3
+          secrets: |
+            hf_token=${{ secrets.HF_TOKEN }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # Image CPU : une construction native par architecture, puis un manifeste commun
+  cpu:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            FLAVOR=cpu
+            DEFAULT_DEVICE=cpu
+            DEFAULT_MODEL=large-v3-turbo
+          secrets: |
+            hf_token=${{ secrets.HF_TOKEN }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+      - name: Exporter l'empreinte
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.runner }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  cpu-manifest:
+    needs: cpu
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=cpu,enable=${{ env.RELEASE }}
+            type=semver,pattern={{version}},suffix=-cpu
+            type=ref,event=branch,suffix=-cpu
+      - name: Créer le manifeste multi-architecture
+        working-directory: /tmp/digests
+        run: |
+          # Découpage en mots voulu : une option -t par étiquette, une référence par empreinte
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
