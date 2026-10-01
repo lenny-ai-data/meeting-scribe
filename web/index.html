@@ -18,7 +18,7 @@
       return {
         file: null,
         url: "",
-        form: { model: "", language: "", device: "", max_speakers: "", vocabulary: "", title: "", meeting_date: "" },
+        form: { profile: "", language: "", device: "", num_speakers: "", vocabulary: "", title: "", meeting_date: "" },
         over: false,
         uploading: false,
         uploadProgress: 0,
@@ -26,11 +26,21 @@
 
         get options() { return this.sysInfo?.options || null; },
 
+        // Profils de l'appareil choisi (modèle Whisper et pas de diarisation)
+        get profiles() { return this.options?.profiles?.[this.form.device] || []; },
+        get profile() { return this.profiles.find((p) => p.id === this.form.profile) || null; },
+
         init() {
           if (!this.options) return;
-          this.form.model = this.options.default_model;
           this.form.language = this.options.default_language;
           this.form.device = this.options.default_device;
+          this.deviceChanged();
+        },
+
+        deviceChanged() {
+          const wanted = this.options.default_profiles?.[this.form.device];
+          const usable = this.profiles.filter((p) => p.available);
+          this.form.profile = (usable.find((p) => p.id === wanted) || usable[usable.length - 1] || {}).id || "";
         },
 
         pick(files) {
@@ -138,10 +148,23 @@
           </div>
           <div class="stack">
             <div>
-              <label for="f-model">Modèle</label>
-              <select id="f-model" x-model="form.model">
-                <template x-for="m in options?.models || []" :key="m"><option :value="m" x-text="MODEL_LABELS[m] || m" :selected="m === form.model"></option></template>
+              <label for="f-device">Calcul</label>
+              <select id="f-device" x-model="form.device" @change="deviceChanged()">
+                <template x-for="d in options?.devices || []" :key="d">
+                  <option :value="d" x-text="d === 'cuda' ? 'GPU' : 'CPU'" :selected="d === form.device"></option>
+                </template>
               </select>
+            </div>
+            <div>
+              <label for="f-profile">Performance</label>
+              <select id="f-profile" x-model="form.profile" :title="profile?.description || ''">
+                <template x-for="p in profiles" :key="p.id">
+                  <option :value="p.id" :disabled="!p.available" :selected="p.id === form.profile"
+                          :title="p.reason || p.description"
+                          x-text="p.available ? p.label : `${p.label} (${p.reason})`"></option>
+                </template>
+              </select>
+              <div class="hint" x-show="profile" x-text="profile?.description" style="margin-top:4px"></div>
             </div>
             <div>
               <label for="f-lang">Langue</label>
@@ -151,17 +174,8 @@
               </select>
             </div>
             <div>
-              <label for="f-device">Calcul</label>
-              <select id="f-device" x-model="form.device">
-                <template x-for="d in options?.devices || []" :key="d">
-                  <option :value="d" x-text="d === 'cuda' ? 'GPU' : 'CPU'" :selected="d === form.device"></option>
-                </template>
-              </select>
-              <div class="hint" x-show="form.device === 'cpu' && form.model === 'large-v3'">Sur CPU, large-v3 est très lent : préférer small (rapide) ou large-v3-turbo (précis).</div>
-            </div>
-            <div>
-              <label for="f-speakers">Nombre d’intervenants (maximum)</label>
-              <input id="f-speakers" type="number" min="1" max="30" placeholder="automatique" x-model="form.max_speakers">
+              <label for="f-speakers">Nombre d’intervenants (améliore les modes rapides)</label>
+              <input id="f-speakers" type="number" min="1" max="30" placeholder="inconnu" x-model="form.num_speakers">
             </div>
           </div>
         </div>

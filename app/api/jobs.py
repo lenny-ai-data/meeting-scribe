@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .. import db
-from ..config import LANGUAGES, WHISPER_MODELS, available_devices, get_settings
+from ..config import LANGUAGES, available_devices, get_settings
+from ..profiles import DEFAULT_PROFILE, PROFILE_IDS, get_profile
 from ..render import display_title
 from ..worker.queue import Worker
 from .common import get_worker, job_or_404, link
@@ -99,10 +100,13 @@ async def create_job(
     worker: Annotated[Worker, Depends(get_worker)],
     file: Annotated[UploadFile | None, File(description="Fichier audio ou vidéo (.m4a, .mp4…)")] = None,
     url: Annotated[str | None, Form(description="URL à télécharger avec yt-dlp (YouTube…)")] = None,
-    model: Annotated[str | None, Form(description="large-v3, large-v3-turbo ou small (rapide, pour le CPU)")] = None,
+    profile: Annotated[str | None, Form(
+        description="Profil de performance : tres_rapide, rapide, precis ou tres_precis (modèle Whisper et pas de "
+                    "diarisation selon le matériel, voir GET /api/system → options.profiles). Par défaut : rapide "
+                    "sur CPU, tres_precis sur GPU")] = None,
     language: Annotated[str | None, Form(description="fr ou en")] = None,
     device: Annotated[str | None, Form(description="cuda ou cpu")] = None,
-    num_speakers: Annotated[int | None, Form()] = None,
+    num_speakers: Annotated[int | None, Form(description="Nombre exact d'intervenants : améliore les profils rapides")] = None,
     min_speakers: Annotated[int | None, Form()] = None,
     max_speakers: Annotated[int | None, Form()] = None,
     vocabulary: Annotated[str | None, Form(description="Noms propres, jargon : aide la reconnaissance")] = None,
@@ -123,10 +127,15 @@ async def create_job(
         callback_url = _check_http_url(callback_url, "callback_url")
     num_speakers, min_speakers, max_speakers = _check_speakers(num_speakers, min_speakers, max_speakers)
 
+    device = _check_choice(device, settings.default_device, available_devices(settings), "device")
+    chosen = get_profile(device, _check_choice(profile, settings.default_profile or DEFAULT_PROFILE[device],
+                                               PROFILE_IDS, "profile"))
     job = db.create_job(
-        model=_check_choice(model, settings.default_model, WHISPER_MODELS, "model"),
+        profile=chosen.id,
+        model=chosen.model,
+        diarization_step=chosen.diarization_step,
         language=_check_choice(language, settings.default_language, LANGUAGES, "language"),
-        device=_check_choice(device, settings.default_device, available_devices(settings), "device"),
+        device=device,
         num_speakers=num_speakers, min_speakers=min_speakers, max_speakers=max_speakers,
         vocabulary=(vocabulary or "").strip() or None,
         title=(title or "").strip() or None,

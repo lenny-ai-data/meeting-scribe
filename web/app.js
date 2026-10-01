@@ -138,12 +138,8 @@ function uploadForm(path, formData, onProgress) {
   });
 }
 
-// Libellés des modèles de transcription dans les formulaires
-const MODEL_LABELS = {
-  "large-v3": "large-v3 (le plus précis, GPU)",
-  "large-v3-turbo": "large-v3-turbo (précis)",
-  "small": "small (rapide)",
-};
+// Libellés des profils de performance (le détail vient de /api/system → options.profiles)
+const PROFILE_LABELS = { tres_rapide: "Très rapide", rapide: "Rapide", precis: "Précis", tres_precis: "Très précis" };
 
 const STATUS_LABELS = {
   queued: "En attente",

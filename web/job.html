@@ -415,7 +415,7 @@
                     <span x-text="fmtDate(job.meeting_date || job.created_at)"></span>
                     <span x-text="fmtDuration(job.duration)"></span>
                     <span x-text="job.source_name || job.source_url"></span>
-                    <span x-text="`${job.model} · ${job.language} · ${job.device === 'cuda' ? 'GPU' : 'CPU'}`"></span>
+                    <span x-text="`${job.profile ? PROFILE_LABELS[job.profile] + ' (' + job.model + ')' : job.model} · ${job.language} · ${job.device === 'cuda' ? 'GPU' : 'CPU'}`"></span>
                   </div>
                 </div>
                 <button class="small" @click="startEdit()">Modifier</button>

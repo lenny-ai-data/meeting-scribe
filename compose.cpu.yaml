@@ -1,6 +1,6 @@
 # Meeting Scribe sans GPU (PC, Mac Apple Silicon) : docker compose -f compose.cpu.yaml up -d
-# Profil rapide : small et diarisation au pas de 2,5 s, environ 0,3 × la durée de la réunion sur un
-# processeur de bureau récent ; large-v3-turbo (plus précis) reste au choix dans le formulaire.
+# Profil « Rapide » par défaut (small, diarisation au pas de 2,5 s) : environ 0,3 × la durée de la réunion
+# sur un processeur de bureau récent ; les autres profils se choisissent dans le formulaire.
 services:
   meeting-scribe:
     image: ghcr.io/lenny-ai-data/meeting-scribe:cpu
@@ -9,7 +9,6 @@ services:
       args:
         FLAVOR: cpu
         DEFAULT_DEVICE: cpu
-        DEFAULT_MODEL: small
       secrets:
         - hf_token
     container_name: meeting-scribe

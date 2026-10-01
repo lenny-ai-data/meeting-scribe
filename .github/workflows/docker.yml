@@ -61,7 +61,6 @@ jobs:
           build-args: |
             FLAVOR=cuda
             DEFAULT_DEVICE=cuda
-            DEFAULT_MODEL=large-v3
           secrets: |
             hf_token=${{ secrets.HF_TOKEN }}
           push: true
@@ -95,7 +94,6 @@ jobs:
           build-args: |
             FLAVOR=cpu
             DEFAULT_DEVICE=cpu
-            DEFAULT_MODEL=small
           secrets: |
             hf_token=${{ secrets.HF_TOKEN }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true

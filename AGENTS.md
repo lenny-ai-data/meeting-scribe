@@ -88,7 +88,8 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 | Chemin | Rôle |
 |---|---|
 | `app/main.py` | Application FastAPI : lifespan (base, reprise des tâches, worker, handler summarize, hook callbacks), `/api/health` sans auth, montage de `web/` |
-| `app/config.py` | `Settings` (pydantic-settings), `WHISPER_MODELS`, `LANGUAGES`, `DEVICES` |
+| `app/config.py` | `Settings` (pydantic-settings), `LANGUAGES`, `DEVICES`, appareils disponibles |
+| `app/profiles.py` | Profils de performance (modèle et pas de diarisation par appareil), pics de VRAM mesurés, choix de la précision et des lots selon la VRAM libre |
 | `app/db.py` | Schéma SQLite et accès : une connexion par opération ; `claim_next_task` en `BEGIN IMMEDIATE` ; `recover_interrupted_tasks` |
 | `app/api/` | Routes : `jobs`, `speakers`, `summaries`, `prompts`, `settings` (réglages LLM), `system`, et `common` pour les aides partagées |
 | `app/auth.py` | `API_TOKEN` optionnel (`Authorization: Bearer` ou `?token=`) |
@@ -125,12 +126,12 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
   2. pour chaque modèle chargé, `POST /api/generate {"keep_alive": 0}`, ou `/api/embed` pour un modèle d'embedding ;
   3. attente de la libération (`OLLAMA_UNLOAD_TIMEOUT`, 30 s).
   - **Quand** : au début de la transcription, au début d'une `rediarize`, puis de nouveau avant l'alignement.
-  - **Contrôle de la VRAM** : au début seulement, vérifier qu'il reste assez de VRAM libre : seuil selon le modèle (`MIN_VRAM_GB` dans `config.py` : 10 Go en `large-v3`, 6 Go en `large-v3-turbo`, pour les cartes de 8 Go), ou `MIN_FREE_VRAM_GB` s'il est défini. En dessous, le job échoue avec un message clair, plutôt que d'aller jusqu'à une erreur CUDA de mémoire. Le pic réellement alloué par torch est écrit dans `pipeline.log` après chaque étape.
+  - **Contrôle de la VRAM** : au début seulement, vérifier qu'il reste assez de VRAM libre pour la configuration la plus économe du modèle (`profiles.min_vram_gb` : 4,9 Go en `large-v3`, 3 Go en `large-v3-turbo`, 2,6 Go en `small` ; 2,6 Go pour une nouvelle diarisation seule), ou `MIN_FREE_VRAM_GB` s'il est défini. En dessous, le job échoue avec un message clair, plutôt que d'aller jusqu'à une erreur CUDA de mémoire. La VRAM libre mesurée sert ensuite à choisir précision et taille des lots (voir Profils). Le pic réellement alloué par torch est écrit dans `pipeline.log` après chaque étape.
   - **Pourquoi** : un autre client d'Ollama (Open WebUI, par exemple) peut recharger un modèle à tout moment.
   - Tout cela est sauté si le job tourne en `device=cpu`.
 - **Progression** (`Reporter` dans `pipeline.py`) : `progress` (0-100) par étape, et `progress_detail`, un texte libre affiché sous la barre (téléchargement d'un modèle avec sa taille, chargement, taille des lots). Un champ plutôt qu'un nouveau statut, pour ne pas changer la liste des statuts sur laquelle s'appuient les intégrations.
   - WhisperX signale l'avancée par rafales, à la fin de chaque lot : une avancée d'au moins 0,5 point est toujours écrite, les plus petites au plus une fois par seconde. L'ancienne règle (une écriture par seconde au plus) perdait toute la rafale sauf son premier point : 0 %, 5 %, puis 100 % sur CPU.
-  - **Lots plus petits sur CPU** (`batch_size_for`) : 4 au lieu de 16. Mesuré sur l'interview de 7 min 54 en turbo int8 : 91 s en lots de 16 (premier retour à 71 s), 92 s en lots de 8, 95 s en lots de 4 (un retour toutes les 18 s environ).
+  - **Lots de 4 sur CPU** (`cpu_batch_size`). Mesuré sur l'interview de 7 min 54 en turbo int8 : 91 s en lots de 16 (premier retour à 71 s), 92 s en lots de 8, 95 s en lots de 4 (un retour toutes les 18 s environ).
   - **Téléchargement des modèles Whisper** au premier usage : fait à part (`_download_whisper`), dans un fil, en mesurant le dossier `blobs` du cache Hugging Face (le fichier `.incomplete` grossit au fil de l'eau) ; la taille attendue vient de l'API Hugging Face.
 - **Reprise après redémarrage** : une tâche restée `running` est remise en file une seule fois (`max_attempts=2`), puis marquée en échec.
 - **`rediarize`** : relance seulement la diarisation à partir de `aligned.json` (environ 1 min). Un échec garde le résultat précédent ; le job reste `completed`, avec le message d'erreur.
@@ -154,7 +155,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 ### Transcription et diarisation
 
 - **WhisperX 3.8.6** : torch 2.8 cu128, pyannote-audio 4.0.7, faster-whisper ≥ 1.2.
-  - Modèles : `large-v3` par défaut sur GPU, `large-v3-turbo`, ou `small` (défaut de l'image `cpu`).
+  - Modèles : `small`, `large-v3-turbo` ou `large-v3`, choisis par le profil de performance (voir plus bas).
   - Langues : `fr` par défaut, ou `en`.
   - Matériel : GPU par défaut, CPU possible.
 - **`interleaved_context`** n'existe pas en 3.8.6 : il n'est activé que si `inspect.signature` le trouve, ce qui prépare les versions suivantes.
@@ -162,13 +163,36 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 - **Diarisation** : `pyannote/speaker-diarization-community-1`.
   - Le dépôt est à accès restreint, mais le modèle est sous CC-BY-4.0, donc redistribuable avec attribution. **Il est embarqué dans l'image** (`DIARIZATION_MODEL_DIR`, 32 Mo, chemins relatifs `$model/…` dans `config.yaml`) : les utilisateurs n'ont besoin ni de jeton ni de réseau (vérifié avec `HF_HUB_OFFLINE=1`). Sans copie locale, repli sur l'identifiant HF et `HF_TOKEN`.
   - `assign_word_speakers(fill_nearest=True)`.
-- **Image CPU : WhisperX, profil rapide** (`small` + diarisation au pas de 2,5 s), choisi le 01/10/2026 : 17 min pour 7 min d'audio sur un portable avec `large-v3-turbo` et le pas de 1 s, jugé trop long ; une transcription un peu moins fidèle suffit, le compte rendu par LLM rattrape. `large-v3-turbo` reste proposé comme option « précis ».
-  - Mesures sur une interview radio de 7 min 54 en français, i7-12700, 10 threads, WER contre `large-v3` sur GPU :
+- **Profils de performance** (`app/profiles.py`), décidés le 01/10/2026 : l'utilisateur ne choisit plus un modèle mais un profil, qui fixe le modèle Whisper et le pas de diarisation selon l'appareil. Origine : 17 min pour 7 min d'audio sur un portable avec `large-v3-turbo` et le pas de 1 s, jugé trop long ; une transcription un peu moins fidèle suffit souvent, le compte rendu par LLM rattrape.
+
+  | Profil | CPU | GPU |
+  |---|---|---|
+  | Très rapide (`tres_rapide`) | `small`, pas de 5 s | `small`, pas de 2,5 s (cartes de 3 à 4 Go) |
+  | Rapide (`rapide`) | `small`, pas de 2,5 s (défaut) | `large-v3-turbo`, pas de 2,5 s |
+  | Précis (`precis`) | `large-v3-turbo`, pas de 2,5 s | `large-v3`, pas de 2,5 s |
+  | Très précis (`tres_precis`) | `large-v3-turbo`, pas de 1 s | `large-v3`, pas de 1 s (défaut) |
+
+  - Le job enregistre `profile`, `model` et `diarization_step` ; le frontmatter du transcript porte le profil. L'API ne prend plus de `model`.
+  - **Nombre d'intervenants** : l'interface ne propose plus que le nombre exact (`num_speakers`), « améliore les modes rapides ». Aucun repli automatique : le profil « Très rapide » sans nombre peut confondre deux voix (mesuré : 12 % d'écart au pas de 5 s sans nombre, 3,5 % avec). L'API garde `min_speakers` et `max_speakers`.
+  - Durées mesurées (7 min 54, modèles en cache, nombre d'intervenants donné), par étape :
+
+    | | Transcription | Alignement | Diarisation | Total |
+    |---|---|---|---|---|
+    | CPU très rapide | 48 s | 24 s | 34 s (pas de 5 s) | ≈ 1 min 50 |
+    | CPU rapide | 48 s | 24 s | 67 s (2,5 s) | ≈ 2 min 20 |
+    | CPU précis | 99 s | 24 s | 67 s | ≈ 3 min 15 |
+    | CPU très précis | 99 s | 24 s | 164 s (1 s) | ≈ 4 min 50 |
+    | GPU très rapide | 3,4 s | 4,3 s | 3,1 s | ≈ 16 s |
+    | GPU rapide | 6,5 s | 4,3 s | 3,1 s | ≈ 19 s |
+    | GPU précis | 10,2 s | 4,3 s | 3,1 s | ≈ 23 s |
+    | GPU très précis | 10,2 s | 4,3 s | 6,6 s | ≈ 26 s |
+
+- **Choix des moteurs.** Mesures sur une interview radio de 7 min 54 en français, i7-12700, 10 threads, WER contre `large-v3` sur GPU :
 
     | Moteur | Transcription | WER | Verdict |
     |---|---|---|---|
-    | Whisper `small` int8 | 47 s | 15 % | défaut CPU |
-    | Whisper `large-v3-turbo` int8 | 94 s | 6 % | option « précis » |
+    | Whisper `small` int8 | 47 s | 15 % | profils rapides |
+    | Whisper `large-v3-turbo` int8 | 94 s | 6 % | profils précis (CPU) |
     | Whisper `medium` int8 | 117 s | 9 % | écarté : plus lent que turbo (décodeur complet) |
     | Whisper `base` / `tiny` int8 | 19 / 13 s | 28 / 36 % | écartés : un mot sur trois ou quatre faux |
     | Parakeet TDT 0.6B v3 (onnx-asr) | 33 s | 61 % | écarté : dérive en anglais au milieu des phrases, pas de langue forcée |
@@ -176,16 +200,24 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
     | Canary-1B-v2 (onnx-asr, `language="fr"`) | 574 s | — | écarté : boucles d'hallucinations, pas d'horodatage par mot |
 
   - Les variantes q5 de whisper.cpp n'ont pas été mesurées : CTranslate2 (WhisperX) descend au plus à int8.
-- **Diarisation sur CPU au pas de 2,5 s** (`CPU_DIARIZATION_STEP`, appliqué à `pipeline.model._segmentation.step`). pyannote analyse des fenêtres de 10 s avec un pas de 1 s : chaque instant est vu par une dizaine de fenêtres, et une empreinte vocale (WeSpeaker) est calculée par fenêtre et par intervenant local. Ces empreintes font 198 s des 203 s de diarisation sur CPU. Le pas ne change pas la précision des frontières (trames d'environ 17 ms) mais le nombre de fenêtres :
+- **Pas de diarisation** (appliqué à `pipeline.model._segmentation.step`). pyannote analyse des fenêtres de 10 s avec un pas de 1 s : chaque instant est vu par une dizaine de fenêtres, et une empreinte vocale (WeSpeaker) est calculée par fenêtre et par intervenant local. Ces empreintes font 198 s des 203 s de diarisation sur CPU. Le pas ne change pas la précision des frontières (trames d'environ 17 ms) mais le nombre de fenêtres, donc d'empreintes et de « votes » par instant. La fenêtre de 10 s, elle, est fixée par l'entraînement du modèle de segmentation (trois intervenants locaux au plus) : ne pas la modifier.
 
-  | Pas | Durée | Intervenants | Écart (DER) avec le pas de 1 s |
+  | Pas | Durée (CPU) | Intervenants trouvés | Écart (DER) avec le pas de 1 s |
   |---|---|---|---|
   | 1 s | 203 s | 4 | référence |
-  | 2,5 s | 81 s | 3 | 3,9 % |
-  | 5 s | 41 s | 2 | 11,8 % |
+  | 2,5 s | 81 s | 3 | 3,9 % (4,2 % avec `num_speakers=3`) |
+  | 5 s | 41 s | 2 | 11,8 % (3,5 % avec `num_speakers=3`) |
 
-  Les prises de parole très brèves risquent d'être absorbées (4 → 3 intervenants sur l'interview, où 3 personnes parlent réellement). Le GPU garde le pas de 1 s : la diarisation y prend quelques secondes.
-- **Job complet sur CPU** (profil rapide, modèles en cache) : 2 min 23 pour 7 min 54 (transcription 50 s, alignement 25 s, diarisation 66 s), contre 5 min 15 avec `large-v3-turbo` et le pas de 1 s.
+  Les prises de parole très brèves risquent d'être absorbées (environ 13 s de relances de la troisième personne sur l'interview). Donner le nombre d'intervenants supprime l'essentiel du risque restant, qui porte sur le comptage.
+- **VRAM adaptative sur GPU** (`profiles.choose_gpu_config`). La transcription est toujours l'étape limitante (alignement 0,7 Go, diarisation 1,6 Go). Au début du job, la VRAM libre mesurée choisit la première configuration qui tient avec 1 Go de marge : float16 lots de 16, puis int8_float16 lots de 16, 8, 4. `BATCH_SIZE` fixe la taille des lots ; seule la précision s'adapte alors.
+
+  | Pic de transcription (chargement compris) | float16 · 16 | int8 · 16 | int8 · 8 | int8 · 4 |
+  |---|---|---|---|---|
+  | `small` | 2,5 Go · 5 s | 2,1 Go · 6 s | 1,5 Go · 6 s | 1,2 Go · 7 s |
+  | `large-v3-turbo` | 4,3 Go · 7 s | 3,3 Go · 7 s | 2,6 Go · 7 s | 2,0 Go · 8 s |
+  | `large-v3` | 9,8 Go · 12 s | 8,0 Go · 12 s | 5,4 Go · 13 s | 3,9 Go · 15 s |
+
+  int8 ne dégrade pas la qualité (WER de turbo : 6,2 % en int8 contre 6,4 % en float16 ; `large-v3` int8 lots de 4 : 2,4 % d'écart avec float16 lots de 16). Une carte de 6 Go fait donc tourner tous les profils. `/api/system` grise les profils dont le minimum dépasse la VRAM totale de la carte.
 - **Date de réunion par défaut** : `creation_time` du fichier (les `.m4a` d'iPhone la portent), sinon la date de dépôt. Pour YouTube, la date de publication.
 
 ### Intervenants
@@ -284,7 +316,7 @@ Réglages issus de tests sur des enregistrements réels :
 | Déchargement d'Ollama | environ 1 s (VRAM de 20,3 à 0,5 Go) |
 | Interview de 7 min 54 | environ 60 s en `large-v3`, environ 40 s en `large-v3-turbo` |
 | Interview télévisée de 5 min 13 | 22 s |
-| Pic de VRAM, transcription (`BATCH_SIZE=16`) | environ 9,9 Go en `large-v3`, 4,4 Go en `large-v3-turbo` (mesuré par la VRAM libre de la carte, ctranslate2 compris) |
+| Pic de VRAM, transcription | voir le tableau de la VRAM adaptative (§ 5) |
 | Pic de VRAM, alignement et diarisation | 0,7 Go et 1,6 Go réellement nécessaires. Sur une carte libre, la diarisation monte à 9,8 Go sur certains fichiers (espace de travail opportuniste, mesure de `torch.cuda.max_memory_allocated`) ; plafonnée à 5,9 Go, elle donne le même résultat |
 | VRAM après un job | environ 280 Mo |
 | Image `cpu`, interview de 7 min 54, profil rapide (`small`, pas de 2,5 s) | 2 min 23 (transcription 50 s, alignement 25 s, diarisation 66 s) |

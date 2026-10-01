@@ -7,7 +7,8 @@ import httpx
 from fastapi import APIRouter, Depends
 
 from .. import __version__, db
-from ..config import LANGUAGES, WHISPER_MODELS, available_devices, get_settings
+from ..config import LANGUAGES, available_devices, get_settings
+from ..profiles import DEFAULT_PROFILE, PROFILES
 from ..llm.config import OllamaConfig, llm_config
 from ..worker.queue import Worker
 from .common import get_worker
@@ -58,6 +59,26 @@ async def _ollama(cfg: OllamaConfig) -> dict:
     return info
 
 
+def _profiles(settings, gpu: list[dict] | None) -> dict:
+    """Profils proposés par appareil ; sur GPU, grisés si la carte n'a pas assez de VRAM au total."""
+    total_gb = max((g["memory_total_mb"] for g in gpu), default=0) / 1024 if gpu else None
+    out = {}
+    for device in available_devices(settings):
+        items = []
+        for p in PROFILES[device].values():
+            item = {"id": p.id, "label": p.label, "model": p.model, "diarization_step": p.diarization_step,
+                    "description": p.description, "available": True, "reason": None}
+            if device == "cuda":
+                need = settings.min_vram_gb(p.model)
+                item["min_vram_gb"] = need
+                if total_gb is not None and total_gb < need:
+                    item["available"] = False
+                    item["reason"] = f"{need:g} Go de VRAM requis, carte de {total_gb:.1f} Go".replace(".", ",")
+            items.append(item)
+        out[device] = items
+    return out
+
+
 def _status(settings, gpu: list[dict] | None, ollama: dict, running: bool) -> dict:
     """Synthèse pour le voyant de l'interface : error (transcription impossible), busy ou ready."""
     problems, warnings = [], []
@@ -95,8 +116,10 @@ async def system(worker: Annotated[Worker, Depends(get_worker)]):
         },
         "versions": {name: _package_version(name) for name in ("yt-dlp", "whisperx", "torch", "pyannote.audio")},
         "options": {
-            "models": WHISPER_MODELS, "languages": LANGUAGES, "devices": available_devices(settings),
-            "default_model": settings.default_model, "default_language": settings.default_language,
+            "profiles": _profiles(settings, gpu),
+            "default_profiles": {d: settings.default_profile or DEFAULT_PROFILE[d] for d in available_devices(settings)},
+            "languages": LANGUAGES, "devices": available_devices(settings),
+            "default_language": settings.default_language,
             "default_device": settings.default_device, "owner_name": settings.owner_name or None,
         },
     }

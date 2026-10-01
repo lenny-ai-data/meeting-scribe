@@ -5,14 +5,14 @@
 Service auto-hébergé de transcription de réunions, en français ou en anglais : identification des intervenants, transcript Markdown horodaté et compte rendu généré par un LLM, local ou distant.
 
 - **Entrées** : fichiers audio ou vidéo (`.m4a` d'iPhone, `.mp4`…) ou URL YouTube.
-- **Chaîne de traitement** : [WhisperX](https://github.com/m-bain/whisperX) 3.8.6, c'est-à-dire faster-whisper `large-v3`, `large-v3-turbo` ou `small`, alignement mot à mot, puis diarisation avec `pyannote/speaker-diarization-community-1`.
-- **Deux images Docker** : `cuda` pour une carte NVIDIA, `cpu` pour un PC ou un Mac sans GPU. Le modèle de diarisation y est embarqué : aucun compte Hugging Face n'est nécessaire.
-- **Intervenants** : ils sont séparés automatiquement, puis nommés dans l'interface après écoute de courts extraits. Aucune empreinte vocale n'est conservée.
-- **Comptes rendus** : [Ollama](https://ollama.com) en local, ou n'importe quelle API compatible OpenAI (OpenAI, Mistral, OpenRouter…).
-- **Toute la logique est dans l'API** (`/api`, documentation interactive sur `/docs`). L'interface web n'en est qu'un client : n8n, un script ou un agent peuvent faire exactement la même chose.
-- **Un seul traitement à la fois**, pour qu'une seule carte graphique suffise : avant chaque transcription, les modèles d'Ollama sont déchargés de la VRAM quand il tourne sur la même machine.
-
-Né pour remplacer [Whishper](https://github.com/pluja/whishper), qui n'est plus maintenu.
+- **Chaîne de traitement** : [WhisperX](https://github.com/m-bain/whisperX), c'est-à-dire faster-whisper (`small`, `large-v3-turbo` ou `large-v3`, selon le [profil de performance](#profils-de-performance)), alignement mot à mot, puis diarisation avec `pyannote/speaker-diarization-community-1`.
+- **Deux images Docker** avec modèle de diarisation embarqué.
+  - `cuda` pour une carte NVIDIA.
+  - `cpu` pour un PC ou un Mac sans GPU.
+- **Intervenants** : séparés automatiquement, puis nommés dans l'interface après écoute de courts extraits ou par le LLM.
+- **Comptes rendus** : [Ollama](https://ollama.com) en local, ou toute API compatible OpenAI (OpenAI, Mistral, OpenRouter…).
+- **Toute la logique est dans l'API**. L'interface web n'en est qu'un client : n8n, un script ou un agent peuvent le consommer de la même manière.
+- **Un traitement à la fois**, pensé pour une station mono-GPU : avant chaque transcription, les modèles d'Ollama sont déchargés de la VRAM quand ils tournent sur la même machine.
 
 ## Sommaire
 
@@ -49,9 +49,9 @@ flowchart LR
 
 1. Un fichier ou une URL est déposé, par l'interface ou par l'API. Le job entre dans la file.
 2. Le worker libère le GPU, convertit l'audio, transcrit, aligne chaque mot sur l'audio, puis attribue chaque mot à une voix.
-3. Les voix sont nommées `S1`, `S2`… avec trois courts extraits chacune. On leur donne un nom en les écoutant ; donner le même nom à deux voix les fusionne.
+3. Les voix sont nommées `S1`, `S2`… avec trois courts extraits chacune. On leur donne un nom en les écoutant, donner le même nom à deux voix les fusionne.
 4. Le transcript Markdown est rendu à la demande, toujours avec les noms courants.
-5. En option, un LLM rédige un compte rendu à partir du transcript.
+5. En option, un LLM rédige un compte rendu à partir du transcript et peut identifier les intervenants.
 6. Si une `callback_url` a été fournie, chaque étape importante (job terminé ou en échec, intervenants renommés, compte rendu prêt) y est envoyée, Markdown compris.
 
 ### Déploiement
@@ -59,7 +59,6 @@ flowchart LR
 ```mermaid
 flowchart LR
     U["Navigateur"] -->|":8090"| MS
-    N["n8n, script, agent"] -->|":8090/api"| MS
     subgraph H["Hôte Docker avec GPU NVIDIA"]
         MS["Conteneur meeting-scribe<br>FastAPI + worker"]
         O["Ollama (optionnel)<br>:11434"]
@@ -67,12 +66,12 @@ flowchart LR
         MS --- V1[("./data<br>base SQLite, jobs")]
         MS --- V2[("./models<br>cache des modèles")]
     end
-    MS -.->|"optionnel"| L["API compatible OpenAI"]
-    MS -.->|"callbacks"| N
-    MS -->|"1er démarrage"| HF["Hugging Face<br>(téléchargement des modèles)"]
+    MS -.->|"optionnel"| L["API externe"]
 ```
 
-Un seul conteneur suffit. Ollama, l'API distante et n8n sont facultatifs.
+Un seul conteneur suffit. 
+
+La solution peut tourner sur un unique CPU. Avoir un GPU permet d'accélérer la transcription et d'utiliser un LLM local via Ollama pour faire le compte rendu sans clé API.
 
 ## Prérequis
 
@@ -82,14 +81,14 @@ Deux images, selon la machine :
 |---|---|---|
 | Pour | PC ou serveur avec carte NVIDIA | PC sans carte NVIDIA, Mac Apple Silicon |
 | Système | Linux x86_64, ou Windows 10/11 avec Docker Desktop (WSL2) | Linux, Windows ou macOS (x86_64 ou arm64) |
-| GPU | NVIDIA, 12 Go de VRAM en `large-v3`, 8 Go en `large-v3-turbo` ; pilote 570 ou plus récent | aucun |
+| GPU | NVIDIA, 4 Go de VRAM au moins (6 Go pour tous les profils) ; pilote 570 ou plus récent | aucun |
 | Docker | Docker Engine et Compose v2, avec le [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) sous Linux | Docker Engine et Compose v2, ou Docker Desktop |
 | Mémoire vive | 16 Go | 16 Go |
 | Disque | environ 20 Go (image 13,5 Go, modèles 5 Go) | environ 8 Go (image 4,5 Go, modèles 3 Go) |
-| Vitesse | une interview de 8 min en 40 s (`large-v3-turbo`) à 60 s (`large-v3`) sur une RTX 3090 | environ 0,3 × la durée de la réunion en `small` sur un Intel i7-12700 (2 min 25 pour 8 min d'audio), 0,4 × en `large-v3-turbo` ; compter 2 à 3 fois plus sur un portable |
+| Vitesse (8 min d'audio) | 16 à 26 s sur une RTX 3090, selon le profil | 1 min 50 à 4 min 50 sur un i7-12700, selon le profil ; 2 à 3 fois plus sur un portable |
 | Ollama | facultatif, pour les comptes rendus en local | idem, ou une API distante |
 
-Pics de VRAM mesurés : environ 10 Go en `large-v3`, 4,5 Go en `large-v3-turbo`. L'image `cuda` embarque CUDA 12.8 par les roues de PyTorch : rien à installer côté CUDA.
+La VRAM nécessaire dépend du profil (voir [Profils de performance](#profils-de-performance)). L'image `cuda` embarque CUDA 12.8 par les roues de PyTorch : rien à installer côté CUDA.
 
 Vérifier que Docker voit le GPU (image `cuda`) :
 
@@ -124,7 +123,7 @@ curl -s http://localhost:8090/api/system | jq .status
 # {"state": "ready", "problems": [], "warnings": [...]}
 ```
 
-Au premier job, les modèles de transcription et d'alignement sont téléchargés dans `./models` (environ 3 Go pour `large-v3`, 1,6 Go pour `large-v3-turbo`, 500 Mo pour `small`, plus 1,2 Go d'alignement pour le français) : ce premier job est donc plus long que les suivants.
+Au premier job, les modèles de transcription et d'alignement sont téléchargés dans `./models` (environ 3 Go pour `large-v3`, 1,6 Go pour `large-v3-turbo`, 500 Mo pour `small`, selon le profil, plus 1,2 Go d'alignement pour le français) : ce premier job est donc plus long que les suivants.
 
 **Windows** : installer [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) avec le moteur WSL2, puis lancer les mêmes commandes dans PowerShell (`curl.exe` au lieu de `curl`, `mkdir data, models`). Avec une carte NVIDIA, un pilote récent suffit : Docker Desktop transmet le GPU aux conteneurs.
 
@@ -161,12 +160,11 @@ Toutes les variables sont dans [.env.example](.env.example), commentées. Après
 | Variable | Défaut | Rôle |
 |---|---|---|
 | `HF_TOKEN` | — | Jeton Hugging Face. Inutile si le modèle de diarisation est embarqué dans l'image (`DIARIZATION_MODEL_DIR`) |
-| `DEFAULT_MODEL` | `large-v3` (image `cuda`), `small` (image `cpu`) | `large-v3` (le plus précis), `large-v3-turbo` (précis, plus rapide, moins de VRAM) ou `small` (rapide, pour le CPU) |
-| `CPU_DIARIZATION_STEP` | `2.5` | Pas des fenêtres de diarisation sur CPU, en secondes (pyannote : 1 s). Plus grand = plus rapide, mais les prises de parole très brèves risquent d'être absorbées |
+| `DEFAULT_PROFILE` | `rapide` sur CPU, `tres_precis` sur GPU | Profil de performance proposé par défaut : `tres_rapide`, `rapide`, `precis` ou `tres_precis` |
 | `DEFAULT_LANGUAGE` | `fr` | `fr` ou `en` |
 | `DEFAULT_DEVICE` | `cuda` | `cuda` ou `cpu` |
-| `BATCH_SIZE` | 16 sur GPU, 4 sur CPU | Passages de 30 s transcrits par lot. La progression n'avance qu'à la fin de chaque lot : sur CPU, 4 la met à jour environ toutes les 20 s, pour 4 % de temps en plus |
-| `MIN_FREE_VRAM_GB` | selon le modèle | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA. Par défaut : 10 Go en `large-v3`, 6 Go en `large-v3-turbo`, 4 Go en `small` |
+| `BATCH_SIZE` | selon la VRAM sur GPU, 4 sur CPU | Passages de 30 s transcrits par lot. Sur GPU, 16, 8 ou 4 selon la VRAM libre ; sur CPU, 4 met à jour la progression toutes les 20 s environ, pour 4 % de temps en plus. Une valeur fixe désactive le choix automatique |
+| `MIN_FREE_VRAM_GB` | selon le profil | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA. Par défaut : 5 Go en `large-v3`, 3 Go en `large-v3-turbo`, 2,6 Go en `small` |
 | `DIARIZATION_MODEL_DIR` | `/opt/models/pyannote/speaker-diarization-community-1` | Copie locale du modèle pyannote ; si elle existe, ni jeton ni réseau ne sont nécessaires |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama de l'hôte (valeur initiale, modifiable dans *Réglages*) |
 | `OLLAMA_MODEL` | — | Modèle des comptes rendus ; vide = premier modèle installé |
@@ -216,18 +214,41 @@ Ollama et WhisperX ne tiennent généralement pas ensemble sur la carte. Meeting
 
 Le prompt système des comptes rendus se modifie dans *Réglages* ; un prompt par défaut en français est créé au premier démarrage.
 
-### Sans GPU
+### Profils de performance
 
-Utiliser l'image `cpu` ([compose.cpu.yaml](compose.cpu.yaml)). Son profil privilégie la vitesse : `small` en int8 et une diarisation au pas de 2,5 s, soit environ 0,3 × la durée de la réunion sur un processeur de bureau récent, 2 à 3 fois plus sur un portable. Le compte rendu par LLM rattrape bien les erreurs de transcription. Pour une transcription plus fidèle (noms propres, chiffres), choisir `large-v3-turbo` dans le formulaire : environ 1,6 fois plus long.
+Le formulaire et l'API (`profile`) proposent quatre profils, qui fixent le modèle Whisper et le pas de diarisation. La diarisation analyse l'audio par fenêtres de 10 s ; le pas est l'écart entre deux fenêtres. Un pas plus grand calcule moins d'empreintes vocales, donc va plus vite, mais attribue moins bien les interventions très brèves et compte moins sûrement les intervenants. **Indiquer le nombre d'intervenants** (`num_speakers`) compense largement ce dernier point.
 
-Mesures sur une interview radio de 7 min 54 en français (i7-12700, 10 threads), taux d'erreur par mot (WER) comparé à `large-v3` sur GPU :
+Mesures sur une interview de 7 min 54 en français, modèles déjà téléchargés. WER : part de mots erronés par rapport à `large-v3`.
 
-| Modèle | Transcription | WER |
-|---|---|---|
-| `small` (par défaut sur CPU) | 47 s | 15 % |
-| `large-v3-turbo` | 94 s | 6 % |
-| `medium` (non proposé : plus lent que turbo) | 117 s | 9 % |
-| `base`, `tiny` (non proposés) | 19 s, 13 s | 28 %, 36 % |
+**Sans GPU** (image `cpu`, Intel i7-12700, 10 threads ; compter 2 à 3 fois plus sur un portable) :
+
+| Profil | Modèle | Pas | Durée | WER |
+|---|---|---|---|---|
+| Très rapide | `small` | 5 s | 1 min 50 | 15 % |
+| **Rapide** (par défaut) | `small` | 2,5 s | 2 min 20 | 15 % |
+| Précis | `large-v3-turbo` | 2,5 s | 3 min 15 | 6 % |
+| Très précis | `large-v3-turbo` | 1 s | 4 min 50 | 6 % |
+
+**Avec GPU** (image `cuda`, RTX 3090) :
+
+| Profil | Modèle | Pas | Durée | WER | VRAM minimale |
+|---|---|---|---|---|---|
+| Très rapide | `small` | 2,5 s | 16 s | 15 % | 2,6 Go |
+| Rapide | `large-v3-turbo` | 2,5 s | 19 s | 6 % | 3 Go |
+| Précis | `large-v3` | 2,5 s | 23 s | — | 4,9 Go |
+| **Très précis** (par défaut) | `large-v3` | 1 s | 26 s | — | 4,9 Go |
+
+Sur GPU, la précision des calculs et la taille des lots s'adaptent à la VRAM libre au début du job : float16 par lots de 16 si la place le permet, sinon int8 par lots de 16, 8 ou 4. int8 ne change pas la qualité, et coûte au plus 4 s. `large-v3` tient ainsi en 3,9 Go : une carte de 6 ou 8 Go fait tourner tous les profils. Les profils trop gourmands pour la carte sont grisés dans le formulaire.
+
+| Pic de VRAM de la transcription | float16, lots de 16 | int8, lots de 16 | int8, lots de 8 | int8, lots de 4 |
+|---|---|---|---|---|
+| `small` | 2,5 Go | 2,1 Go | 1,5 Go | 1,2 Go |
+| `large-v3-turbo` | 4,3 Go | 3,3 Go | 2,6 Go | 2,0 Go |
+| `large-v3` | 9,8 Go | 8,0 Go | 5,4 Go | 3,9 Go |
+
+L'alignement prend 0,7 Go et la diarisation 1,6 Go ; s'y ajoutent environ 1 Go de marge (contexte CUDA, affichage).
+
+Pour des comptes rendus sans GPU, préférer une API distante, ou un Ollama sur une autre machine du réseau.
 
 ### YouTube
 
@@ -276,7 +297,7 @@ Deux workflows n8n prêts à importer (Google Drive → transcription → Google
 
 | Appel | Rôle |
 |---|---|
-| `POST /api/jobs` (multipart) | `file` ou `url`, plus `model`, `language`, `device`, `num_speakers` / `min_speakers` / `max_speakers`, `vocabulary`, `title`, `meeting_date`, `source_name`, `external_ref`, `callback_url` |
+| `POST /api/jobs` (multipart) | `file` ou `url`, plus `profile` (`tres_rapide`, `rapide`, `precis`, `tres_precis`), `language`, `device`, `num_speakers`, `vocabulary`, `title`, `meeting_date`, `source_name`, `external_ref`, `callback_url` |
 | `GET /api/jobs`, `GET /api/jobs/{id}` | Statut (`queued`, `downloading`, `preparing`, `transcribing`, `aligning`, `diarizing`, `completed`, `failed`, `cancelled`), progression (`progress`, et `progress_detail` : téléchargement d'un modèle, lot en cours…), intervenants |
 | `PATCH /api/jobs/{id}` | Titre, date |
 | `POST /api/jobs/{id}/cancel`, `DELETE /api/jobs/{id}` | Annuler, supprimer |
@@ -332,8 +353,8 @@ Les frontières des tours sont recalées sur les fins de phrase, et la ponctuati
 - **Sauvegarde** : le dossier `./data` suffit. `./models` n'est qu'un cache, retéléchargeable.
 - **Mise à jour** : `docker compose pull && docker compose up -d` avec l'image publiée (ajouter `-f compose.cpu.yaml` pour l'image `cpu`), ou `git pull && docker compose up -d --build` depuis le dépôt.
 - **Journaux** : `docker compose logs -f meeting-scribe`, et `data/jobs/<id>/pipeline.log` pour un job précis.
-- **Performances** pour une interview de 8 min, modèles déjà téléchargés : environ 40 s en `large-v3-turbo` et 60 s en `large-v3` sur une RTX 3090 ; 2 min 25 en `small` sur CPU (i7-12700).
-- **VRAM** : le pic est atteint pendant la transcription, environ 10 Go en `large-v3` et 4,5 Go en `large-v3-turbo` (`BATCH_SIZE=16`). La diarisation n'a besoin que d'environ 1,6 Go, même si elle occupe davantage quand la carte est libre. Toute la mémoire est rendue à la fin du job, car chaque traitement tourne dans un sous-processus.
+- **Performances** : voir [Profils de performance](#profils-de-performance).
+- **VRAM** : le pic est atteint pendant la transcription et dépend du profil ; toute la mémoire est rendue à la fin du job, car chaque traitement tourne dans un sous-processus.
 - **Redémarrage** : une tâche interrompue est relancée une fois, puis marquée en échec.
 
 ## Dépannage
@@ -345,7 +366,7 @@ Les frontières des tours sont recalées sur les fins de phrase, et la ponctuati
 | `could not select device driver "nvidia"` au démarrage | Pas de runtime NVIDIA : utiliser `compose.cpu.yaml` |
 | Diarisation en échec, erreur 401 ou 403 | Conditions de `pyannote/speaker-diarization-community-1` non acceptées sur le compte du jeton |
 | « VRAM libre insuffisante » | Un autre programme occupe la carte (autre service de transcription, modèle chargé hors Ollama…) |
-| « Carte de N Go : trop petite pour ce modèle » | Choisir `large-v3-turbo` ou `small`, ou le CPU |
+| « Carte de N Go : trop petite pour ce profil » | Choisir un profil plus rapide, ou le CPU |
 | `Permission denied` sur `/data` ou `/models` | Dossiers créés en root ou par un autre uid : `sudo chown -R 1000:1000 data models` |
 | « Ollama injoignable » | Ollama arrêté, ou n'écoute que sur `127.0.0.1` (voir [Comptes rendus](#comptes-rendus)) |
 | YouTube réclame une connexion | Vérifier la mise à jour de yt-dlp dans les journaux de démarrage, puis fournir les cookies |
@@ -359,7 +380,7 @@ uv run pytest            # tests sans GPU : moteur factice (FAKE_PIPELINE=true)
 ```
 
 - Les dépendances sont gérées uniquement avec [uv](https://docs.astral.sh/uv/) ; la pile de transcription n'est installée que dans l'image Docker : `uv sync --extra cuda` (torch CUDA) ou `--extra cpu` (torch CPU), deux extras incompatibles entre eux.
-- Images : `docker build --build-arg FLAVOR=cpu --build-arg DEFAULT_DEVICE=cpu --build-arg DEFAULT_MODEL=small --secret id=hf_token,env=HF_TOKEN .` ; publication sur GHCR par [.github/workflows/docker.yml](.github/workflows/docker.yml) à chaque tag `vX.Y.Z`.
+- Images : `docker build --build-arg FLAVOR=cpu --build-arg DEFAULT_DEVICE=cpu --secret id=hf_token,env=HF_TOKEN .` ; publication sur GHCR par [.github/workflows/docker.yml](.github/workflows/docker.yml) à chaque tag `vX.Y.Z`.
 - Organisation du code :
   - `app/api/` : routes ;
   - `app/worker/` : file de tâches, sous-processus du pipeline, moteur WhisperX, libération du GPU ;
