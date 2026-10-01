@@ -474,13 +474,6 @@ textarea.md-editor { min-height: 60vh; }
   bottom: 12px;
   z-index: 5;
   margin-top: 8px;
-  padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: var(--shadow);
 }
 .player audio { width: 100%; display: block; }
 
