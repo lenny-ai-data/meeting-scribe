@@ -5,7 +5,7 @@
 Service auto-hébergé de transcription de réunions, en français ou en anglais : identification des intervenants, transcript Markdown horodaté et compte rendu généré par un LLM, local ou distant.
 
 - **Entrées** : fichiers audio ou vidéo (`.m4a` d'iPhone, `.mp4`…) ou URL YouTube.
-- **Chaîne de traitement** : [WhisperX](https://github.com/m-bain/whisperX) 3.8.6, c'est-à-dire faster-whisper `large-v3` ou `large-v3-turbo`, alignement mot à mot, puis diarisation avec `pyannote/speaker-diarization-community-1`.
+- **Chaîne de traitement** : [WhisperX](https://github.com/m-bain/whisperX) 3.8.6, c'est-à-dire faster-whisper `large-v3`, `large-v3-turbo` ou `small`, alignement mot à mot, puis diarisation avec `pyannote/speaker-diarization-community-1`.
 - **Deux images Docker** : `cuda` pour une carte NVIDIA, `cpu` pour un PC ou un Mac sans GPU. Le modèle de diarisation y est embarqué : aucun compte Hugging Face n'est nécessaire.
 - **Intervenants** : ils sont séparés automatiquement, puis nommés dans l'interface après écoute de courts extraits. Aucune empreinte vocale n'est conservée.
 - **Comptes rendus** : [Ollama](https://ollama.com) en local, ou n'importe quelle API compatible OpenAI (OpenAI, Mistral, OpenRouter…).
@@ -86,7 +86,7 @@ Deux images, selon la machine :
 | Docker | Docker Engine et Compose v2, avec le [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) sous Linux | Docker Engine et Compose v2, ou Docker Desktop |
 | Mémoire vive | 16 Go | 16 Go |
 | Disque | environ 20 Go (image 13,5 Go, modèles 5 Go) | environ 8 Go (image 4,5 Go, modèles 3 Go) |
-| Vitesse | une interview de 8 min en 40 s (`large-v3-turbo`) à 60 s (`large-v3`) sur une RTX 3090 | environ 0,6 à 0,7 × la durée de la réunion (`large-v3-turbo`, Intel i7-12700) : 5 min pour 8 min d'audio, environ 1 h pour 1 h 30 |
+| Vitesse | une interview de 8 min en 40 s (`large-v3-turbo`) à 60 s (`large-v3`) sur une RTX 3090 | environ 0,3 × la durée de la réunion en `small` sur un Intel i7-12700 (2 min 25 pour 8 min d'audio), 0,4 × en `large-v3-turbo` ; compter 2 à 3 fois plus sur un portable |
 | Ollama | facultatif, pour les comptes rendus en local | idem, ou une API distante |
 
 Pics de VRAM mesurés : environ 10 Go en `large-v3`, 4,5 Go en `large-v3-turbo`. L'image `cuda` embarque CUDA 12.8 par les roues de PyTorch : rien à installer côté CUDA.
@@ -124,7 +124,7 @@ curl -s http://localhost:8090/api/system | jq .status
 # {"state": "ready", "problems": [], "warnings": [...]}
 ```
 
-Au premier job, les modèles de transcription et d'alignement sont téléchargés dans `./models` (environ 3 Go pour `large-v3`, 1,6 Go pour `large-v3-turbo`, plus 1,2 Go d'alignement pour le français) : ce premier job est donc plus long que les suivants.
+Au premier job, les modèles de transcription et d'alignement sont téléchargés dans `./models` (environ 3 Go pour `large-v3`, 1,6 Go pour `large-v3-turbo`, 500 Mo pour `small`, plus 1,2 Go d'alignement pour le français) : ce premier job est donc plus long que les suivants.
 
 **Windows** : installer [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) avec le moteur WSL2, puis lancer les mêmes commandes dans PowerShell (`curl.exe` au lieu de `curl`, `mkdir data, models`). Avec une carte NVIDIA, un pilote récent suffit : Docker Desktop transmet le GPU aux conteneurs.
 
@@ -161,11 +161,12 @@ Toutes les variables sont dans [.env.example](.env.example), commentées. Après
 | Variable | Défaut | Rôle |
 |---|---|---|
 | `HF_TOKEN` | — | Jeton Hugging Face. Inutile si le modèle de diarisation est embarqué dans l'image (`DIARIZATION_MODEL_DIR`) |
-| `DEFAULT_MODEL` | `large-v3` | `large-v3` (plus précis) ou `large-v3-turbo` (plus rapide, moins de VRAM) |
+| `DEFAULT_MODEL` | `large-v3` (image `cuda`), `small` (image `cpu`) | `large-v3` (le plus précis), `large-v3-turbo` (précis, plus rapide, moins de VRAM) ou `small` (rapide, pour le CPU) |
+| `CPU_DIARIZATION_STEP` | `2.5` | Pas des fenêtres de diarisation sur CPU, en secondes (pyannote : 1 s). Plus grand = plus rapide, mais les prises de parole très brèves risquent d'être absorbées |
 | `DEFAULT_LANGUAGE` | `fr` | `fr` ou `en` |
 | `DEFAULT_DEVICE` | `cuda` | `cuda` ou `cpu` |
 | `BATCH_SIZE` | 16 sur GPU, 4 sur CPU | Passages de 30 s transcrits par lot. La progression n'avance qu'à la fin de chaque lot : sur CPU, 4 la met à jour environ toutes les 20 s, pour 4 % de temps en plus |
-| `MIN_FREE_VRAM_GB` | selon le modèle | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA. Par défaut : 10 Go en `large-v3`, 6 Go en `large-v3-turbo` |
+| `MIN_FREE_VRAM_GB` | selon le modèle | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA. Par défaut : 10 Go en `large-v3`, 6 Go en `large-v3-turbo`, 4 Go en `small` |
 | `DIARIZATION_MODEL_DIR` | `/opt/models/pyannote/speaker-diarization-community-1` | Copie locale du modèle pyannote ; si elle existe, ni jeton ni réseau ne sont nécessaires |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama de l'hôte (valeur initiale, modifiable dans *Réglages*) |
 | `OLLAMA_MODEL` | — | Modèle des comptes rendus ; vide = premier modèle installé |
@@ -217,7 +218,16 @@ Le prompt système des comptes rendus se modifie dans *Réglages* ; un prompt pa
 
 ### Sans GPU
 
-Utiliser l'image `cpu` ([compose.cpu.yaml](compose.cpu.yaml)) : `large-v3-turbo` en int8 sur le processeur, environ 0,6 à 0,7 × la durée de la réunion, dont plus de la moitié pour la diarisation. `large-v3` reste possible, mais nettement plus lent. Pour des comptes rendus sans GPU, préférer une API distante, ou un Ollama sur une autre machine du réseau.
+Utiliser l'image `cpu` ([compose.cpu.yaml](compose.cpu.yaml)). Son profil privilégie la vitesse : `small` en int8 et une diarisation au pas de 2,5 s, soit environ 0,3 × la durée de la réunion sur un processeur de bureau récent, 2 à 3 fois plus sur un portable. Le compte rendu par LLM rattrape bien les erreurs de transcription. Pour une transcription plus fidèle (noms propres, chiffres), choisir `large-v3-turbo` dans le formulaire : environ 1,6 fois plus long.
+
+Mesures sur une interview radio de 7 min 54 en français (i7-12700, 10 threads), taux d'erreur par mot (WER) comparé à `large-v3` sur GPU :
+
+| Modèle | Transcription | WER |
+|---|---|---|
+| `small` (par défaut sur CPU) | 47 s | 15 % |
+| `large-v3-turbo` | 94 s | 6 % |
+| `medium` (non proposé : plus lent que turbo) | 117 s | 9 % |
+| `base`, `tiny` (non proposés) | 19 s, 13 s | 28 %, 36 % |
 
 ### YouTube
 
@@ -322,7 +332,7 @@ Les frontières des tours sont recalées sur les fins de phrase, et la ponctuati
 - **Sauvegarde** : le dossier `./data` suffit. `./models` n'est qu'un cache, retéléchargeable.
 - **Mise à jour** : `docker compose pull && docker compose up -d` avec l'image publiée (ajouter `-f compose.cpu.yaml` pour l'image `cpu`), ou `git pull && docker compose up -d --build` depuis le dépôt.
 - **Journaux** : `docker compose logs -f meeting-scribe`, et `data/jobs/<id>/pipeline.log` pour un job précis.
-- **Performances** pour une interview de 8 min, modèles déjà téléchargés : environ 40 s en `large-v3-turbo` et 60 s en `large-v3` sur une RTX 3090 ; environ 5 min en `large-v3-turbo` sur CPU (i7-12700).
+- **Performances** pour une interview de 8 min, modèles déjà téléchargés : environ 40 s en `large-v3-turbo` et 60 s en `large-v3` sur une RTX 3090 ; 2 min 25 en `small` sur CPU (i7-12700).
 - **VRAM** : le pic est atteint pendant la transcription, environ 10 Go en `large-v3` et 4,5 Go en `large-v3-turbo` (`BATCH_SIZE=16`). La diarisation n'a besoin que d'environ 1,6 Go, même si elle occupe davantage quand la carte est libre. Toute la mémoire est rendue à la fin du job, car chaque traitement tourne dans un sous-processus.
 - **Redémarrage** : une tâche interrompue est relancée une fois, puis marquée en échec.
 
@@ -335,7 +345,7 @@ Les frontières des tours sont recalées sur les fins de phrase, et la ponctuati
 | `could not select device driver "nvidia"` au démarrage | Pas de runtime NVIDIA : utiliser `compose.cpu.yaml` |
 | Diarisation en échec, erreur 401 ou 403 | Conditions de `pyannote/speaker-diarization-community-1` non acceptées sur le compte du jeton |
 | « VRAM libre insuffisante » | Un autre programme occupe la carte (autre service de transcription, modèle chargé hors Ollama…) |
-| « Carte de N Go : trop petite pour ce modèle » | Choisir `large-v3-turbo`, ou le CPU |
+| « Carte de N Go : trop petite pour ce modèle » | Choisir `large-v3-turbo` ou `small`, ou le CPU |
 | `Permission denied` sur `/data` ou `/models` | Dossiers créés en root ou par un autre uid : `sudo chown -R 1000:1000 data models` |
 | « Ollama injoignable » | Ollama arrêté, ou n'écoute que sur `127.0.0.1` (voir [Comptes rendus](#comptes-rendus)) |
 | YouTube réclame une connexion | Vérifier la mise à jour de yt-dlp dans les journaux de démarrage, puis fournir les cookies |
@@ -349,7 +359,7 @@ uv run pytest            # tests sans GPU : moteur factice (FAKE_PIPELINE=true)
 ```
 
 - Les dépendances sont gérées uniquement avec [uv](https://docs.astral.sh/uv/) ; la pile de transcription n'est installée que dans l'image Docker : `uv sync --extra cuda` (torch CUDA) ou `--extra cpu` (torch CPU), deux extras incompatibles entre eux.
-- Images : `docker build --build-arg FLAVOR=cpu --build-arg DEFAULT_DEVICE=cpu --build-arg DEFAULT_MODEL=large-v3-turbo --secret id=hf_token,env=HF_TOKEN .` ; publication sur GHCR par [.github/workflows/docker.yml](.github/workflows/docker.yml) à chaque tag `vX.Y.Z`.
+- Images : `docker build --build-arg FLAVOR=cpu --build-arg DEFAULT_DEVICE=cpu --build-arg DEFAULT_MODEL=small --secret id=hf_token,env=HF_TOKEN .` ; publication sur GHCR par [.github/workflows/docker.yml](.github/workflows/docker.yml) à chaque tag `vX.Y.Z`.
 - Organisation du code :
   - `app/api/` : routes ;
   - `app/worker/` : file de tâches, sous-processus du pipeline, moteur WhisperX, libération du GPU ;

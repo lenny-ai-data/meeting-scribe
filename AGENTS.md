@@ -154,7 +154,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 ### Transcription et diarisation
 
 - **WhisperX 3.8.6** : torch 2.8 cu128, pyannote-audio 4.0.7, faster-whisper ≥ 1.2.
-  - Modèles : `large-v3` par défaut, ou `large-v3-turbo`.
+  - Modèles : `large-v3` par défaut sur GPU, `large-v3-turbo`, ou `small` (défaut de l'image `cpu`).
   - Langues : `fr` par défaut, ou `en`.
   - Matériel : GPU par défaut, CPU possible.
 - **`interleaved_context`** n'existe pas en 3.8.6 : il n'est activé que si `inspect.signature` le trouve, ce qui prépare les versions suivantes.
@@ -162,10 +162,30 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 - **Diarisation** : `pyannote/speaker-diarization-community-1`.
   - Le dépôt est à accès restreint, mais le modèle est sous CC-BY-4.0, donc redistribuable avec attribution. **Il est embarqué dans l'image** (`DIARIZATION_MODEL_DIR`, 32 Mo, chemins relatifs `$model/…` dans `config.yaml`) : les utilisateurs n'ont besoin ni de jeton ni de réseau (vérifié avec `HF_HUB_OFFLINE=1`). Sans copie locale, repli sur l'identifiant HF et `HF_TOKEN`.
   - `assign_word_speakers(fill_nearest=True)`.
-- **Image CPU : WhisperX, pas Parakeet ni Canary.** Mesures du 01/10/2026 sur une interview radio de 7 min 54 en français, i7-12700, 10 threads :
-  - Parakeet TDT 0.6B v3 (onnx-asr, int8 ou fp32) : 33 s, mais dérive en anglais au milieu des phrases (88 à 122 mots anglais sur environ 1 000) et passages perdus ; le modèle n'a pas de langue forcée ;
-  - Canary-1B-v2 (onnx-asr, int8, `language="fr"`) : 574 s, boucles d'hallucinations, pas d'horodatage par mot ;
-  - Whisper large-v3-turbo int8 (faster-whisper, par lots) : 92 s, 1 540 mots, aucune dérive. Puis alignement 24 s, diarisation pyannote 199 s : environ 0,7 × la durée de la réunion au total sur CPU.
+- **Image CPU : WhisperX, profil rapide** (`small` + diarisation au pas de 2,5 s), choisi le 01/10/2026 : 17 min pour 7 min d'audio sur un portable avec `large-v3-turbo` et le pas de 1 s, jugé trop long ; une transcription un peu moins fidèle suffit, le compte rendu par LLM rattrape. `large-v3-turbo` reste proposé comme option « précis ».
+  - Mesures sur une interview radio de 7 min 54 en français, i7-12700, 10 threads, WER contre `large-v3` sur GPU :
+
+    | Moteur | Transcription | WER | Verdict |
+    |---|---|---|---|
+    | Whisper `small` int8 | 47 s | 15 % | défaut CPU |
+    | Whisper `large-v3-turbo` int8 | 94 s | 6 % | option « précis » |
+    | Whisper `medium` int8 | 117 s | 9 % | écarté : plus lent que turbo (décodeur complet) |
+    | Whisper `base` / `tiny` int8 | 19 / 13 s | 28 / 36 % | écartés : un mot sur trois ou quatre faux |
+    | Parakeet TDT 0.6B v3 (onnx-asr) | 33 s | 61 % | écarté : dérive en anglais au milieu des phrases, pas de langue forcée |
+    | Phonon-2 (Parakeet v3 quantifié 2 bits) | — | 36 % | écarté : reste en français, mais niveau `tiny` et 22 % des mots omis |
+    | Canary-1B-v2 (onnx-asr, `language="fr"`) | 574 s | — | écarté : boucles d'hallucinations, pas d'horodatage par mot |
+
+  - Les variantes q5 de whisper.cpp n'ont pas été mesurées : CTranslate2 (WhisperX) descend au plus à int8.
+- **Diarisation sur CPU au pas de 2,5 s** (`CPU_DIARIZATION_STEP`, appliqué à `pipeline.model._segmentation.step`). pyannote analyse des fenêtres de 10 s avec un pas de 1 s : chaque instant est vu par une dizaine de fenêtres, et une empreinte vocale (WeSpeaker) est calculée par fenêtre et par intervenant local. Ces empreintes font 198 s des 203 s de diarisation sur CPU. Le pas ne change pas la précision des frontières (trames d'environ 17 ms) mais le nombre de fenêtres :
+
+  | Pas | Durée | Intervenants | Écart (DER) avec le pas de 1 s |
+  |---|---|---|---|
+  | 1 s | 203 s | 4 | référence |
+  | 2,5 s | 81 s | 3 | 3,9 % |
+  | 5 s | 41 s | 2 | 11,8 % |
+
+  Les prises de parole très brèves risquent d'être absorbées (4 → 3 intervenants sur l'interview, où 3 personnes parlent réellement). Le GPU garde le pas de 1 s : la diarisation y prend quelques secondes.
+- **Job complet sur CPU** (profil rapide, modèles en cache) : 2 min 23 pour 7 min 54 (transcription 50 s, alignement 25 s, diarisation 66 s), contre 5 min 15 avec `large-v3-turbo` et le pas de 1 s.
 - **Date de réunion par défaut** : `creation_time` du fichier (les `.m4a` d'iPhone la portent), sinon la date de dépôt. Pour YouTube, la date de publication.
 
 ### Intervenants
@@ -267,7 +287,8 @@ Réglages issus de tests sur des enregistrements réels :
 | Pic de VRAM, transcription (`BATCH_SIZE=16`) | environ 9,9 Go en `large-v3`, 4,4 Go en `large-v3-turbo` (mesuré par la VRAM libre de la carte, ctranslate2 compris) |
 | Pic de VRAM, alignement et diarisation | 0,7 Go et 1,6 Go réellement nécessaires. Sur une carte libre, la diarisation monte à 9,8 Go sur certains fichiers (espace de travail opportuniste, mesure de `torch.cuda.max_memory_allocated`) ; plafonnée à 5,9 Go, elle donne le même résultat |
 | VRAM après un job | environ 280 Mo |
-| Image `cpu`, interview de 7 min 54, `large-v3-turbo` | 4 min 55 (transcription 1 min 50 avec téléchargement du modèle, alignement 27 s, diarisation 2 min 36) |
+| Image `cpu`, interview de 7 min 54, profil rapide (`small`, pas de 2,5 s) | 2 min 23 (transcription 50 s, alignement 25 s, diarisation 66 s) |
+| Image `cpu`, interview de 7 min 54, `large-v3-turbo` et pas de 1 s (avant le profil rapide) | 4 min 55 (transcription 1 min 50 avec téléchargement du modèle, alignement 27 s, diarisation 2 min 36) |
 
 ## 7. Commandes courantes
 
@@ -303,6 +324,6 @@ uv run python docs/branding/make_logo.py
 ## 9. Pistes
 
 - Tester un enregistrement de 1 h 30 : durée totale, VRAM, taille de contexte du compte rendu.
-- Accélérer la diarisation sur CPU, qui représente plus de la moitié du temps de traitement dans l'image `cpu`.
+- Accélérer encore la diarisation sur CPU, toujours la plus longue étape du profil rapide (66 s sur 2 min 23) : empreintes vocales en ONNX, par exemple.
 - Application Windows sans Docker (uv/PyPI ou `.exe`). À traiter : annulation sans `os.killpg`, chemins `/data` et `/models`, ffmpeg et Deno.
 - Favicon et sélecteur de thème de la page `/docs`.

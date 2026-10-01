@@ -95,7 +95,7 @@ jobs:
           build-args: |
             FLAVOR=cpu
             DEFAULT_DEVICE=cpu
-            DEFAULT_MODEL=large-v3-turbo
+            DEFAULT_MODEL=small
           secrets: |
             hf_token=${{ secrets.HF_TOKEN }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true

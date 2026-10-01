@@ -138,6 +138,13 @@ function uploadForm(path, formData, onProgress) {
   });
 }
 
+// Libellés des modèles de transcription dans les formulaires
+const MODEL_LABELS = {
+  "large-v3": "large-v3 (le plus précis, GPU)",
+  "large-v3-turbo": "large-v3-turbo (précis)",
+  "small": "small (rapide)",
+};
+
 const STATUS_LABELS = {
   queued: "En attente",
   downloading: "Téléchargement",

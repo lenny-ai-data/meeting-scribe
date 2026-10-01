@@ -140,7 +140,7 @@
             <div>
               <label for="f-model">Modèle</label>
               <select id="f-model" x-model="form.model">
-                <template x-for="m in options?.models || []" :key="m"><option :value="m" x-text="m" :selected="m === form.model"></option></template>
+                <template x-for="m in options?.models || []" :key="m"><option :value="m" x-text="MODEL_LABELS[m] || m" :selected="m === form.model"></option></template>
               </select>
             </div>
             <div>
@@ -157,7 +157,7 @@
                   <option :value="d" x-text="d === 'cuda' ? 'GPU' : 'CPU'" :selected="d === form.device"></option>
                 </template>
               </select>
-              <div class="hint" x-show="form.device === 'cpu' && form.model === 'large-v3'">Sur CPU, large-v3-turbo est nettement plus rapide.</div>
+              <div class="hint" x-show="form.device === 'cpu' && form.model === 'large-v3'">Sur CPU, large-v3 est très lent : préférer small (rapide) ou large-v3-turbo (précis).</div>
             </div>
             <div>
               <label for="f-speakers">Nombre d’intervenants (maximum)</label>
