@@ -21,28 +21,24 @@ PROFILE_IDS = ("tres_rapide", "rapide", "precis", "tres_precis")
 PROFILES: dict[str, dict[str, Profile]] = {
     "cpu": {p.id: p for p in (
         Profile("tres_rapide", "Très rapide", "small", 5.0,
-                "small, diarisation au pas de 5 s : environ 0,25 × la durée de la réunion. "
-                "Indiquer le nombre d’intervenants, sans quoi deux voix risquent d’être confondues."),
+                "Whisper small, diarisation au pas de 5 s."),
         Profile("rapide", "Rapide", "small", 2.5,
-                "small, diarisation au pas de 2,5 s : environ 0,3 × la durée de la réunion. "
-                "Transcription moins fidèle (noms propres, chiffres), que le compte rendu rattrape."),
+                "Whisper small, diarisation au pas de 2,5 s."),
         Profile("precis", "Précis", "large-v3-turbo", 2.5,
-                "large-v3-turbo, diarisation au pas de 2,5 s : environ 0,4 × la durée de la réunion."),
+                "Whisper large-v3-turbo, diarisation au pas de 2,5 s."),
         Profile("tres_precis", "Très précis", "large-v3-turbo", 1.0,
-                "large-v3-turbo, diarisation au pas de 1 s : environ 0,6 × la durée de la réunion. "
-                "Les interventions brèves sont mieux attribuées."),
+                "Whisper large-v3-turbo, diarisation au pas de 1 s."),
     )},
     "cuda": {p.id: p for p in (
         Profile("tres_rapide", "Très rapide", "small", 2.5,
-                "small, diarisation au pas de 2,5 s : pour les cartes de 3 à 4 Go. "
+                "Whisper small, diarisation au pas de 2,5 s. "
                 "Transcription moins fidèle (noms propres, chiffres)."),
         Profile("rapide", "Rapide", "large-v3-turbo", 2.5,
-                "large-v3-turbo, diarisation au pas de 2,5 s."),
+                "Whisper large-v3-turbo, diarisation au pas de 2,5 s."),
         Profile("precis", "Précis", "large-v3", 2.5,
-                "large-v3, diarisation au pas de 2,5 s."),
+                "Whisper large-v3, diarisation au pas de 2,5 s."),
         Profile("tres_precis", "Très précis", "large-v3", 1.0,
-                "large-v3, diarisation au pas de 1 s : la meilleure qualité, "
-                "quelques secondes de plus que « Précis »."),
+                "Whisper large-v3, diarisation au pas de 1 s."),
     )},
 }
 
