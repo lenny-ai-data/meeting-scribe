@@ -77,7 +77,7 @@ Un seul conteneur suffit. Ollama, l'API distante et n8n sont facultatifs.
 | | Minimum | Remarque |
 |---|---|---|
 | Système | Linux x86_64 | Développé et testé sous Ubuntu 24.04 |
-| GPU | NVIDIA, 12 Go de VRAM | Pic mesuré d'environ 12 Go en `large-v3`, pendant la diarisation. Testé sur une RTX 3090 (24 Go). Le mode CPU existe mais est très lent |
+| GPU | NVIDIA, 12 Go de VRAM en `large-v3`, 8 Go en `large-v3-turbo` | Pics mesurés : environ 10 Go en `large-v3`, 4,5 Go en `large-v3-turbo`. Testé sur une RTX 3090 (24 Go). Sans GPU, voir l'image CPU |
 | Pilote NVIDIA | 570 ou plus récent | L'image embarque CUDA 12.8 via les roues de PyTorch : rien à installer côté CUDA |
 | Docker | Docker Engine et Compose v2 | Avec le [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) |
 | Disque | environ 20 Go | Image : environ 13,5 Go. Modèles : environ 5 Go, plus les fichiers des réunions |
@@ -292,7 +292,7 @@ Les frontières des tours sont recalées sur les fins de phrase, et la ponctuati
 - **Mise à jour** : `git pull && docker compose up -d --build`.
 - **Journaux** : `docker compose logs -f meeting-scribe`, et `data/jobs/<id>/pipeline.log` pour un job précis.
 - **Performances** mesurées sur une RTX 3090, modèles déjà téléchargés : environ 40 s en `large-v3-turbo` et 60 s en `large-v3` pour une interview de 8 min.
-- **VRAM** : le pic, environ 12 Go, est atteint pendant la diarisation. Toute la mémoire est rendue à la fin du job, car chaque traitement tourne dans un sous-processus.
+- **VRAM** : le pic est atteint pendant la transcription, environ 10 Go en `large-v3` et 4,5 Go en `large-v3-turbo` (`BATCH_SIZE=16`). La diarisation n'a besoin que d'environ 1,6 Go, même si elle occupe davantage quand la carte est libre. Toute la mémoire est rendue à la fin du job, car chaque traitement tourne dans un sous-processus.
 - **Redémarrage** : une tâche interrompue est relancée une fois, puis marquée en échec.
 
 ## Dépannage

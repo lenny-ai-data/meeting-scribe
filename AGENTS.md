@@ -113,7 +113,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 ### Exécution et GPU
 
 - **Un seul traitement à la fois**, grâce à une file unique en base (`tasks`) et un seul worker asyncio.
-  - **Pourquoi** : la 3090 ne peut pas porter à la fois le LLM d'Ollama (environ 17 Go) et la chaîne WhisperX (pic d'environ 12 Go).
+  - **Pourquoi** : la 3090 ne peut pas porter à la fois le LLM d'Ollama (environ 17 Go) et la chaîne WhisperX (pic d'environ 10 Go en `large-v3`).
   - **Conséquence** : les comptes rendus passent par la même file que les transcriptions, pour que le LLM et WhisperX ne tournent jamais en même temps.
 - **Un sous-processus par tâche GPU.**
   - **Pourquoi** : ctranslate2 et torch retiennent de la VRAM tant que le processus vit. À la sortie du sous-processus, tout est rendu (vérifié : 280 Mo après un job).
@@ -258,7 +258,8 @@ Réglages issus de tests sur des enregistrements réels :
 | Déchargement d'Ollama | environ 1 s (VRAM de 20,3 à 0,5 Go) |
 | Interview de 7 min 54 | environ 60 s en `large-v3`, environ 40 s en `large-v3-turbo` |
 | Interview télévisée de 5 min 13 | 22 s |
-| Pic de VRAM | environ 12 Go, pendant la diarisation |
+| Pic de VRAM, transcription (`BATCH_SIZE=16`) | environ 9,9 Go en `large-v3`, 4,4 Go en `large-v3-turbo` (mesuré par la VRAM libre de la carte, ctranslate2 compris) |
+| Pic de VRAM, alignement et diarisation | 0,7 Go et 1,6 Go réellement nécessaires. Sur une carte libre, la diarisation monte à 9,8 Go sur certains fichiers (espace de travail opportuniste, mesure de `torch.cuda.max_memory_allocated`) ; plafonnée à 5,9 Go, elle donne le même résultat |
 | VRAM après un job | environ 280 Mo |
 
 ## 7. Commandes courantes
