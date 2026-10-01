@@ -67,6 +67,7 @@ Le premier job télécharge les modèles de transcription (de 0,5 à 4 Go selon 
    - Donner le même nom à deux intervenants les fusionne.
    - Si le nombre de voix est faux, « Relancer la diarisation » avec le bon nombre (environ 1 min, sans refaire la transcription).
 4. **Récupérer** le transcript `.md`, et générer, retoucher puis télécharger le compte rendu.
+5. **Retrouver** un passage : le champ de recherche, en haut de la liste des réunions, parcourt tous les transcripts (accents et majuscules ignorés, `"entre guillemets"` pour une expression exacte). Un résultat ouvre le transcript au bon endroit, termes surlignés.
 
 Par l'API, la même chose en trois appels :
 

@@ -28,6 +28,11 @@
         playing: null,
         sampleAudio: null,
         transcript: "",
+        // Arrivée depuis la recherche (?q=…&t=…) : termes surlignés dans le transcript, passage visé
+        highlightTerms: searchTerms(new URLSearchParams(location.search).get("q")),
+        highlightAt: new URLSearchParams(location.search).get("t"),
+        highlightCount: 0,
+        highlightScrolled: false,
         transcriptHeader: "",
         transcriptHtml: "",
         editing: false,
@@ -152,7 +157,35 @@
             this.transcriptHeader = header;
             this.transcriptHtml = renderMarkdown(body).replace(TS_PATTERN,
               (m, h, mi, s) => `<a href="#" class="ts" data-t="${+h * 3600 + +mi * 60 + +s}">${m}</a>`);
+            this.applyHighlight();
           } catch (e) { this.error = e.message; }
+        },
+
+        // Surligne les termes recherchés (à chaque rendu du transcript) ; la première fois, ouvre la
+        // section et fait défiler jusqu'à la première occurrence du passage visé
+        applyHighlight() {
+          if (!this.highlightTerms.length) return;
+          this.$nextTick(() => {
+            const section = document.querySelector("details.transcript-section");
+            if (!section) return;
+            const marks = markTerms(section.querySelector(".markdown"), this.highlightTerms);
+            this.highlightCount = marks.length;
+            if (this.highlightScrolled) return;
+            this.highlightScrolled = true;
+            section.open = true;
+            if (!marks.length) return;
+            const anchor = this.highlightAt != null && section.querySelector(`a.ts[data-t="${Math.floor(+this.highlightAt)}"]`);
+            const target = (anchor && marks.find((m) => anchor.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING)) || marks[0];
+            target.classList.add("current");
+            target.scrollIntoView({ block: "center" });
+          });
+        },
+
+        clearHighlight() {
+          unmarkTerms(document.querySelector("details.transcript-section .markdown"));
+          this.highlightTerms = [];
+          this.highlightCount = 0;
+          history.replaceState(null, "", `job.html?id=${this.id}`);
         },
 
         async loadTimeline() {
@@ -381,6 +414,29 @@
   <div class="shell">
     <aside class="sidebar" :class="{ open: navOpen }">
       <a class="btn primary new" href="./">+ Nouvelle transcription</a>
+      <div class="side-search">
+        <input type="search" placeholder="Rechercher dans les transcripts" aria-label="Rechercher dans les transcripts"
+               x-model="searchQuery" @input="searchInput()" @keydown.enter.prevent="runSearch()" @keydown.escape="clearSearch()"
+               title="Tous les mots dans un même passage, sans tenir compte des accents ; &quot;entre guillemets&quot; : expression exacte">
+      </div>
+      <template x-if="searchResults || searching || searchError">
+        <div class="search-results">
+          <div class="side-title"><span x-text="searchSummary"></span></div>
+          <template x-for="r in searchResults?.items || []" :key="r.job_id">
+            <div class="search-item" :class="{ current: r.job_id === currentId }">
+              <a class="s-title" :href="searchLink(r)" :title="r.title" x-html="highlightText(r.title, r.title_highlights)"></a>
+              <span class="m-meta" x-text="`${fmtDate(r.meeting_date)} · ${r.hit_count > 1 ? r.hit_count + ' passages' : r.hit_count ? '1 passage' : 'titre'}`"></span>
+              <template x-for="h in r.hits" :key="h.start">
+                <a class="s-hit" :href="searchLink(r, h)">
+                  <span class="s-where"><span class="s-ts" x-text="h.timestamp"></span> <span x-text="h.speaker"></span></span>
+                  <span class="s-text" x-html="highlightText(h.text, h.highlights)"></span>
+                </a>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+      <div x-show="!(searchResults || searching || searchError)">
       <div class="side-title">Réunions <span x-show="meetingsTotal" x-text="`(${meetingsTotal})`"></span></div>
       <p class="hint" x-show="!meetings.length" style="padding:0 8px">Aucune transcription pour l’instant.</p>
       <template x-for="m in meetings" :key="m.id">
@@ -397,6 +453,7 @@
           </span>
         </a>
       </template>
+      </div>
     </aside>
     <div class="sidebar-overlay" :class="{ open: navOpen }" @click="navOpen = false"></div>
 
@@ -535,7 +592,7 @@
           </details>
 
           <!-- Transcript (replié par défaut) -->
-          <details class="card section" x-show="completed">
+          <details class="card section transcript-section" x-show="completed">
             <summary>
               <h2>Transcript</h2>
               <span class="hint">Markdown horodaté, regroupé par intervenant</span>
@@ -549,6 +606,10 @@
                 <span class="hint">Cliquez sur un horodatage pour écouter le passage.</span>
               </div>
               <details class="frontmatter"><summary>En-tête YAML</summary><pre><code x-text="transcriptHeader"></code></pre></details>
+              <p class="search-hint hint" x-show="highlightTerms.length">
+                <span x-text="highlightCount ? `Recherche : ${highlightCount} occurrence${highlightCount > 1 ? 's' : ''} surlignée${highlightCount > 1 ? 's' : ''}` : 'Recherche : aucune occurrence dans le transcript'"></span>
+                <button class="small" type="button" @click="clearHighlight()">Effacer le surlignage</button>
+              </p>
               <div class="markdown" x-html="transcriptHtml" @click="seek($event)"></div>
             </div>
           </details>
