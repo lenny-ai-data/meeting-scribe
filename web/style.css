@@ -17,8 +17,9 @@
   color-scheme: light;
 }
 
+/* Thème sombre : celui du système (mode Auto), sauf si l'on force le clair… */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f0e17;
     --surface: #171624;
     --surface-2: #211f33;
@@ -35,6 +36,25 @@
     --shadow: none;
     color-scheme: dark;
   }
+}
+
+/* …ou forcé par le sélecteur de l'en-tête (data-theme posé par app.js) */
+:root[data-theme="dark"] {
+  --bg: #0f0e17;
+  --surface: #171624;
+  --surface-2: #211f33;
+  --border: #312e48;
+  --text: #e8e6f5;
+  --muted: #a09cb8;
+  --accent: #a98bff;
+  --accent-contrast: #120f24;
+  --brand-gradient: linear-gradient(120deg, #4b44e6 0%, #9a3be6 60%, #d44ae8 100%);
+  --brand-text: linear-gradient(90deg, #a98bff, #d17bff);
+  --ok: #4cc47f;
+  --warn: #e0a93a;
+  --err: #f97066;
+  --shadow: none;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -58,6 +78,9 @@ header.top {
 }
 header.top .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
 header.top .brand img { height: 30px; width: auto; }
+.theme-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 13px; color: var(--muted); background: transparent; }
+.theme-toggle:hover { color: var(--text); }
+.theme-toggle svg { width: 16px; height: 16px; }
 .brand-accent { background: var(--brand-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
 header.top nav { display: flex; gap: 16px; flex: 1; }
 header.top nav a { color: var(--muted); text-decoration: none; }
