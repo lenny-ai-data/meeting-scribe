@@ -8,6 +8,7 @@ from ..render import display_title, frontmatter, now_local
 from ..transcript import transcript_markdown
 from . import ollama, openai_compat
 from .base import LLMError
+from .config import llm_config
 
 log = logging.getLogger("llm.summarize")
 
@@ -29,17 +30,18 @@ async def run_summary_task(task: dict) -> None:
     db.update_summary(summary["id"], status="running", error=None)
     user = build_user_message(summary["meeting_prompt"], transcript_markdown(job))
 
+    cfg = llm_config()
     if summary["provider"] == "ollama":
         result = await ollama.complete(
-            settings.ollama_url, summary["model"], summary["system_prompt"], user,
-            think=bool(summary["think"]), max_ctx=settings.ollama_max_ctx, timeout=settings.llm_timeout,
+            cfg.ollama.url, summary["model"], summary["system_prompt"], user,
+            think=bool(summary["think"]), max_ctx=cfg.ollama.max_ctx, timeout=settings.llm_timeout,
             temperature=summary["temperature"],
         )
     elif summary["provider"] == "openai":
-        if not settings.llm_api_configured:
-            raise LLMError("API LLM non configurée (LLM_API_BASE_URL, LLM_API_MODEL)")
+        if not cfg.openai.configured:
+            raise LLMError("API LLM non configurée (Réglages, ou LLM_API_BASE_URL et LLM_API_MODEL)")
         result = await openai_compat.complete(
-            settings.llm_api_base_url, settings.llm_api_key, summary["model"], summary["system_prompt"], user,
+            cfg.openai.base_url, cfg.openai.api_key, summary["model"], summary["system_prompt"], user,
             timeout=settings.llm_timeout, temperature=summary["temperature"],
         )
     else:

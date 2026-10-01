@@ -23,10 +23,70 @@
         token: getToken(),
         error: "",
 
+        // --- Modèles de langage ---
+        llm: null,
+        llmForm: null,
+        llmModels: { ollama: [], openai: [] },
+        llmTest: { ollama: null, openai: null },
+        llmDirty: false,
+        openaiPresets: [
+          { label: "OpenAI", url: "https://api.openai.com/v1" },
+          { label: "Mistral", url: "https://api.mistral.ai/v1" },
+          { label: "OpenRouter", url: "https://openrouter.ai/api/v1" },
+          { label: "LM Studio sur ce PC", url: "http://host.docker.internal:1234/v1" },
+          { label: "llama.cpp sur ce PC", url: "http://host.docker.internal:8080/v1" },
+        ],
+
         get system() { return this.sysInfo; },
 
         async init() {
-          await this.loadPrompts();
+          await Promise.all([this.loadPrompts(), this.loadLlm()]);
+        },
+
+        async loadLlm() {
+          try {
+            this.llm = await api("settings/llm");
+            const { ollama: o, openai: a } = this.llm;
+            this.llmForm = {
+              ollama: { url: o.url, model: o.model || "", max_ctx: o.max_ctx,
+                        unload: o.unload_before_gpu === null ? "auto" : String(o.unload_before_gpu) },
+              openai: { base_url: a.base_url || "", model: a.model || "", api_key: "", clear_key: false },
+            };
+            this.llmDirty = false;
+            this.testLlm("ollama", true);
+            if (a.base_url) this.testLlm("openai", true);
+          } catch (e) { this.error = e.message; }
+        },
+
+        async testLlm(provider, quiet = false) {
+          const f = this.llmForm[provider];
+          const json = { provider, url: provider === "ollama" ? f.url : f.base_url };
+          if (provider === "openai" && f.api_key) json.api_key = f.api_key;
+          if (provider === "openai" && f.clear_key) json.api_key = "";
+          this.llmTest[provider] = { pending: true };
+          try {
+            const r = await api("settings/llm/test", { method: "POST", json });
+            this.llmTest[provider] = quiet && !r.ok ? null : r;
+            this.llmModels[provider] = r.models;
+          } catch (e) { this.llmTest[provider] = { ok: false, error: e.message }; }
+        },
+
+        async saveLlm() {
+          this.error = "";
+          const { ollama: o, openai: a } = this.llmForm;
+          const openai = { base_url: a.base_url.trim(), model: a.model.trim() };
+          if (a.clear_key) openai.api_key = "";
+          else if (a.api_key) openai.api_key = a.api_key;
+          const json = {
+            ollama: { url: o.url.trim(), model: o.model.trim(), max_ctx: Number(o.max_ctx),
+                      unload_before_gpu: o.unload === "auto" ? null : o.unload === "true" },
+            openai,
+          };
+          try {
+            await api("settings/llm", { method: "PUT", json });
+            await Promise.all([this.loadLlm(), this.refreshShell()]);
+            toast("Réglages enregistrés");
+          } catch (e) { this.error = e.message; }
         },
 
         async loadPrompts(selectId) {
@@ -93,6 +153,80 @@
   <main>
     <p class="error" x-show="error" x-text="error"></p>
 
+    <section class="card" x-show="llmForm">
+      <h2>Modèles de langage <small>— pour les comptes rendus</small></h2>
+      <template x-if="llmForm">
+        <div class="grid cols-2" style="align-items:start" @input="llmDirty = true" @change="llmDirty = true">
+          <div>
+            <h3 class="subhead">Ollama</h3>
+            <label for="o-url">Adresse</label>
+            <input id="o-url" type="url" x-model="llmForm.ollama.url" placeholder="http://host.docker.internal:11434">
+            <p class="hint">Sur ce PC : <code>http://host.docker.internal:11434</code>. Sur une autre machine du réseau : <code>http://adresse-ip:11434</code>, avec Ollama lancé en <code>OLLAMA_HOST=0.0.0.0</code>.</p>
+            <label for="o-model" style="margin-top:12px">Modèle par défaut</label>
+            <input id="o-model" type="text" list="o-models" x-model="llmForm.ollama.model"
+                   :placeholder="llmModels.ollama.length ? `vide = ${llmModels.ollama[0]} (premier modèle installé)` : 'ex. qwen3:8b'">
+            <datalist id="o-models"><template x-for="m in llmModels.ollama" :key="m"><option :value="m"></option></template></datalist>
+            <div class="grid cols-2" style="margin-top:12px">
+              <div>
+                <label for="o-ctx">Contexte maximal (tokens)</label>
+                <input id="o-ctx" type="number" min="2048" step="1024" x-model="llmForm.ollama.max_ctx">
+              </div>
+              <div>
+                <label for="o-unload">Libération du GPU</label>
+                <select id="o-unload" x-model="llmForm.ollama.unload">
+                  <option value="auto">Automatique</option>
+                  <option value="true">Toujours</option>
+                  <option value="false">Jamais</option>
+                </select>
+              </div>
+            </div>
+            <p class="hint" x-show="llmForm.ollama.unload === 'auto'"
+               x-text="llm.ollama.unload_effective ? 'Ollama tourne sur cette machine : ses modèles sont déchargés avant chaque transcription GPU.'
+                 : 'Ollama est sur une autre machine : il n’est pas déchargé avant les transcriptions.'"></p>
+            <div class="row" style="margin-top:12px">
+              <button class="small" @click="testLlm('ollama')">Tester</button>
+              <span class="hint" x-show="llmTest.ollama?.pending">Test en cours…</span>
+              <span class="ok-text" x-show="llmTest.ollama?.ok" x-text="`Joignable, ${llmTest.ollama?.models?.length} modèle(s)`"></span>
+              <span class="err-text" x-show="llmTest.ollama && llmTest.ollama.ok === false" x-text="llmTest.ollama?.error"></span>
+            </div>
+          </div>
+          <div>
+            <h3 class="subhead">API compatible OpenAI <small>— optionnelle</small></h3>
+            <label for="a-url">Adresse</label>
+            <div class="row">
+              <input id="a-url" type="url" x-model="llmForm.openai.base_url" placeholder="https://api.mistral.ai/v1" style="flex:1; min-width:220px">
+              <select aria-label="Préréglage" style="width:auto" @change="if ($event.target.value) { llmForm.openai.base_url = $event.target.value; llmDirty = true; } $event.target.value = ''">
+                <option value="">Préréglages…</option>
+                <template x-for="p in openaiPresets" :key="p.url"><option :value="p.url" x-text="p.label"></option></template>
+              </select>
+            </div>
+            <label for="a-key" style="margin-top:12px">Clé d’API</label>
+            <input id="a-key" type="password" autocomplete="off" x-model="llmForm.openai.api_key" :disabled="llmForm.openai.clear_key"
+                   :placeholder="llm.openai.api_key_set ? 'clé enregistrée, laisser vide pour la conserver' : 'aucune (inutile pour LM Studio ou llama.cpp)'">
+            <label class="row" style="margin:6px 0 0" x-show="llm.openai.api_key_set">
+              <input type="checkbox" x-model="llmForm.openai.clear_key"> Effacer la clé enregistrée
+            </label>
+            <label for="a-model" style="margin-top:12px">Modèle</label>
+            <input id="a-model" type="text" list="a-models" x-model="llmForm.openai.model" placeholder="ex. mistral-medium-latest">
+            <datalist id="a-models"><template x-for="m in llmModels.openai" :key="m"><option :value="m"></option></template></datalist>
+            <p class="hint">La clé n’est jamais réaffichée ni renvoyée par l’API.</p>
+            <div class="row" style="margin-top:12px">
+              <button class="small" @click="testLlm('openai')" :disabled="!llmForm.openai.base_url">Tester</button>
+              <span class="hint" x-show="llmTest.openai?.pending">Test en cours…</span>
+              <span class="ok-text" x-show="llmTest.openai?.ok" x-text="`Joignable, ${llmTest.openai?.models?.length} modèle(s)`"></span>
+              <span class="err-text" x-show="llmTest.openai && llmTest.openai.ok === false" x-text="llmTest.openai?.error"></span>
+            </div>
+          </div>
+        </div>
+      </template>
+      <div class="row" style="margin-top:16px">
+        <span class="hint">Ces réglages priment sur le fichier <code>.env</code>.</span>
+        <span class="spacer"></span>
+        <button @click="loadLlm()" x-show="llmDirty">Annuler</button>
+        <button class="primary" @click="saveLlm()" :disabled="!llmDirty">Enregistrer</button>
+      </div>
+    </section>
+
     <section class="card">
       <h2>Prompts système des comptes rendus</h2>
       <div class="grid" style="grid-template-columns: minmax(180px, 240px) 1fr">
@@ -135,9 +269,9 @@
               <tr><th>Ollama</th><td>
                 <span x-text="system.ollama.reachable ? `${system.ollama.url} (v${system.ollama.version})` : `injoignable : ${system.ollama.error || ''}`"></span>
                 <div class="hint" x-show="system.ollama.loaded?.length" x-text="`Chargé : ${(system.ollama.loaded || []).map((m) => m.name).join(', ')}`"></div>
-                <div class="hint" x-text="`Modèle par défaut : ${system.ollama.default_model}`"></div>
+                <div class="hint" x-text="`Modèle par défaut : ${system.ollama.default_model || 'aucun'}`"></div>
               </td></tr>
-              <tr><th>API LLM</th><td x-text="system.llm_api.configured ? `${system.llm_api.base_url} — ${system.llm_api.model}` : 'non configurée (LLM_API_BASE_URL, LLM_API_MODEL)'"></td></tr>
+              <tr><th>API LLM</th><td x-text="system.llm_api.configured ? `${system.llm_api.base_url} — ${system.llm_api.model}` : 'non configurée (voir Modèles de langage)'"></td></tr>
               <tr><th>Diarisation</th><td>
                 <span x-text="system.diarization.model"></span>
                 <div class="hint" x-text="system.diarization.bundled ? 'modèle embarqué dans l’image : jeton Hugging Face inutile'

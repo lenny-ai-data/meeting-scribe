@@ -394,6 +394,11 @@ table.system th { width: 1%; white-space: nowrap; padding-right: 24px; }
 
 .error { color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); padding: 10px 12px; border-radius: 8px; }
 .hint { color: var(--muted); font-size: 13px; }
+.hint code, label code { font-size: 12px; }
+.subhead { margin: 0 0 10px; font-size: 15px; }
+.subhead small { color: var(--muted); font-weight: 400; }
+.ok-text { color: var(--ok); font-size: 13px; }
+.err-text { color: var(--err); font-size: 13px; overflow-wrap: anywhere; }
 
 /* --- Frise des intervenants --------------------------------------------------------------------- */
 

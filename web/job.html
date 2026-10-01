@@ -39,6 +39,7 @@
         // Comptes rendus
         prompts: [],
         ollama: { models: [], default_model: "" },
+        apiModels: [],
         llmApi: { configured: false, model: null },
         summaries: [],
         selectedSummary: null,
@@ -261,7 +262,7 @@
             this.summaryForm.prompt_id = prompts.length ? prompts[0].id : "";
             this.ollama = sys.ollama;
             this.llmApi = sys.llm_api;
-            this.summaryForm.model = sys.ollama.default_model;
+            this.summaryForm.model = sys.ollama.default_model || (sys.ollama.models || [])[0] || "";
             this.setSummaries(summaries);
           } catch (e) { this.summaryError = e.message; }
         },
@@ -285,7 +286,14 @@
         },
 
         providerChanged() {
-          this.summaryForm.model = this.summaryForm.provider === "ollama" ? this.ollama.default_model : (this.llmApi.model || "");
+          if (this.summaryForm.provider === "ollama") {
+            this.summaryForm.model = this.ollama.default_model || (this.ollama.models || [])[0] || "";
+            return;
+          }
+          this.summaryForm.model = this.llmApi.model || "";
+          if (!this.apiModels.length) {
+            api("llm/models?provider=openai").then((r) => { this.apiModels = r.models; }).catch(() => {});
+          }
         },
 
         async generateSummary() {
@@ -564,7 +572,7 @@
                   <div>
                     <label>Fournisseur</label>
                     <select x-model="summaryForm.provider" @change="providerChanged()">
-                      <option value="ollama">Ollama (local)</option>
+                      <option value="ollama">Ollama</option>
                       <option value="openai" :disabled="!llmApi.configured">API compatible OpenAI</option>
                     </select>
                   </div>
@@ -576,7 +584,10 @@
                       </select>
                     </template>
                     <template x-if="summaryForm.provider !== 'ollama'">
-                      <input type="text" x-model="summaryForm.model">
+                      <div>
+                        <input type="text" list="api-models" x-model="summaryForm.model">
+                        <datalist id="api-models"><template x-for="m in apiModels" :key="m"><option :value="m"></option></template></datalist>
+                      </div>
                     </template>
                   </div>
                 </div>
