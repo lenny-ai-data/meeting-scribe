@@ -23,13 +23,13 @@ def no_detail(text: str | None, percent: float | None = None) -> None:
 
 
 class Engine(Protocol):
-    def prepare_gpu(self, check_vram: bool, model: str) -> None: ...
+    def prepare_gpu(self, check_vram: bool, model: str | None) -> None: ...
     def load_audio(self, wav: Path) -> np.ndarray: ...
     def transcribe(self, audio: np.ndarray, model: str, language: str, vocabulary: str | None,
                    on_progress: Progress) -> dict: ...
     def align(self, result: dict, audio: np.ndarray, language: str, on_progress: Progress) -> dict: ...
     def diarize(self, audio: np.ndarray, num_speakers: int | None, min_speakers: int | None,
-                max_speakers: int | None, on_progress: Progress) -> list[dict]: ...
+                max_speakers: int | None, step: float | None, on_progress: Progress) -> list[dict]: ...
     def assign_speakers(self, diarization: list[dict], aligned: dict) -> dict: ...
 
 
@@ -50,7 +50,7 @@ class FakeEngine:
     def __init__(self, delay: float = 0.0):
         self.delay = delay  # secondes par segment, pour tester l'annulation
 
-    def prepare_gpu(self, check_vram: bool, model: str) -> None:
+    def prepare_gpu(self, check_vram: bool, model: str | None) -> None:
         pass
 
     def load_audio(self, wav: Path) -> np.ndarray:
@@ -91,7 +91,7 @@ class FakeEngine:
         on_progress(100)
         return {"segments": aligned}
 
-    def diarize(self, audio, num_speakers, min_speakers, max_speakers, on_progress):
+    def diarize(self, audio, num_speakers, min_speakers, max_speakers, step, on_progress):
         count = num_speakers or 2
         # Deux phrases par tour : SPEAKER_00, SPEAKER_00, SPEAKER_01, SPEAKER_01…
         out = [{"start": start, "end": end, "speaker": f"SPEAKER_{(i // 2) % count:02d}"}

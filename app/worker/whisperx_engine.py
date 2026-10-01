@@ -15,6 +15,7 @@ from ..config import Settings
 from ..errors import ScribeError
 from ..llm.config import llm_config
 from . import gpu
+from ..profiles import choose_gpu_config
 from .engine import Detail, no_detail
 
 log = logging.getLogger("whisperx")
@@ -43,18 +44,19 @@ class WhisperXEngine:
         self.device = device
         self.compute_type = "float16" if device == "cuda" else "int8"
         self.on_detail = on_detail
+        self.free_vram_gb: float | None = None  # mesurée par prepare_gpu, sert à choisir précision et lots
 
     def _free(self, step: str) -> None:
         gc.collect()
         if self.device == "cuda":
             import torch
 
-            # Pic réellement alloué par torch : sert à régler MIN_VRAM_GB (hors mémoire de ctranslate2)
+            # Pic réellement alloué par torch (hors mémoire de ctranslate2) : voir profiles.TRANSCRIBE_VRAM_GB
             log.info("%s : pic de VRAM allouée par torch %.1f Go", step, torch.cuda.max_memory_allocated() / 2**30)
             torch.cuda.reset_peak_memory_stats()
             torch.cuda.empty_cache()
 
-    def prepare_gpu(self, check_vram: bool, model: str) -> None:
+    def prepare_gpu(self, check_vram: bool, model: str | None) -> None:
         if self.device != "cuda":
             return
         ollama = llm_config().ollama
@@ -65,7 +67,7 @@ class WhisperXEngine:
         else:
             log.info("Ollama (%s) ne partage pas ce GPU : pas de déchargement", ollama.url)
         if check_vram:
-            gpu.check_free_vram(self.settings.min_vram_gb(model))
+            self.free_vram_gb = gpu.check_free_vram(self.settings.min_vram_gb(model))
 
     def load_audio(self, wav: Path):
         import whisperx
@@ -126,14 +128,20 @@ class WhisperXEngine:
 
         self._download_whisper(model)
         asr_options = {"initial_prompt": vocabulary} if vocabulary else None
+        if self.device == "cuda":
+            free = self.free_vram_gb if self.free_vram_gb is not None else gpu.free_vram_gb()
+            self.compute_type, batch_size = choose_gpu_config(model, free, self.settings.batch_size)
+            log.info("VRAM libre %.1f Go : %s, lots de %d", free, self.compute_type, batch_size)
+        else:
+            batch_size = self.settings.cpu_batch_size()
         log.info("Chargement de %s (%s, %s)", model, self.device, self.compute_type)
         self.on_detail(f"Chargement du modèle {model}", 0)
         pipeline = whisperx.load_model(
             model, self.device, compute_type=self.compute_type, language=language,
             asr_options=asr_options, threads=max(4, (os.cpu_count() or 8) // 2),
         )
-        batch_size = self.settings.batch_size_for(self.device)
-        self.on_detail(f"Transcription par lots de {batch_size} passages de 30 s", 0)
+        precision = " en int8" if self.compute_type.startswith("int8") and self.device == "cuda" else ""
+        self.on_detail(f"Transcription{precision} par lots de {batch_size} passages de 30 s", 0)
         kwargs = {"batch_size": batch_size, "language": language, "progress_callback": on_progress}
         # Option présente seulement dans les versions récentes de WhisperX
         if "interleaved_context" in inspect.signature(pipeline.transcribe).parameters:
@@ -155,7 +163,7 @@ class WhisperXEngine:
         self._free("Alignement")
         return {"segments": aligned["segments"]}
 
-    def diarize(self, audio, num_speakers, min_speakers, max_speakers, on_progress):
+    def diarize(self, audio, num_speakers, min_speakers, max_speakers, step, on_progress):
         settings = self.settings
         if not settings.diarization_ready:
             raise ScribeError(
@@ -175,10 +183,11 @@ class WhisperXEngine:
                     f"huggingface.co avec le compte du jeton HF_TOKEN. ({exc})"
                 ) from exc
             raise
-        if self.device == "cpu":
+        if step:
+            # Pas entre deux fenêtres de 10 s : moins de fenêtres, donc moins d'empreintes vocales à calculer
             segmentation = pipeline.model._segmentation
-            segmentation.step = min(settings.cpu_diarization_step, segmentation.duration)
-            log.info("Diarisation sur CPU : fenêtres de %g s, pas de %g s", segmentation.duration, segmentation.step)
+            segmentation.step = min(step, segmentation.duration)
+            log.info("Diarisation : fenêtres de %g s, pas de %g s", segmentation.duration, segmentation.step)
         df = pipeline(audio, num_speakers=num_speakers, min_speakers=min_speakers, max_speakers=max_speakers,
                       progress_callback=on_progress)
         del pipeline

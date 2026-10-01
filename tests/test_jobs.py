@@ -35,8 +35,8 @@ def test_validation(client, audio_file):
     assert resp.status_code == 422
     assert client.post("/api/jobs", data={"url": "ftp://example.com/a"}).status_code == 422
     with open(audio_file, "rb") as fh:
-        resp = client.post("/api/jobs", files={"file": ("a.m4a", fh)}, data={"model": "tiny"})
-    assert resp.status_code == 422
+        resp = client.post("/api/jobs", files={"file": ("a.m4a", fh)}, data={"profile": "ultra"})
+    assert resp.status_code == 422 and "tres_precis" in resp.json()["detail"]
     assert client.get("/api/jobs/nope").status_code == 404
 
 
@@ -93,7 +93,8 @@ def test_list_and_system(client, audio_file):
     info = client.get("/api/system").json()
     assert info["fake_pipeline"] is True
     assert info["ollama"]["reachable"] is False
-    assert info["options"]["models"] == ["large-v3", "large-v3-turbo", "small"]
+    assert [p["id"] for p in info["options"]["profiles"]["cpu"]] == ["tres_rapide", "rapide", "precis", "tres_precis"]
+    assert info["options"]["default_profiles"] == {"cuda": "tres_precis", "cpu": "rapide"}
     # Sans HF_TOKEN, le voyant est rouge ; Ollama injoignable n'est qu'un avertissement
     assert info["status"]["state"] == "error"
     assert any("HF_TOKEN" in p for p in info["status"]["problems"])
@@ -142,18 +143,60 @@ def test_diarization_source_without_bundle(settings_env):
 
 
 def test_min_vram_by_model(settings_env):
+    """Configuration la plus économe du modèle (int8, lots de 4) ou diarisation seule, plus 1 Go de marge."""
     settings = get_settings()
-    assert settings.min_vram_gb("large-v3") == 10
-    assert settings.min_vram_gb("large-v3-turbo") == 6
-    assert settings.min_vram_gb("small") == 4
-    assert settings.min_vram_gb("modèle inconnu") == 10
+    assert settings.min_vram_gb("large-v3") == 4.9
+    assert settings.min_vram_gb("large-v3-turbo") == 3.0
+    assert settings.min_vram_gb("small") == 2.6  # la diarisation (1,6 Go) dépasse small en int8
+    assert settings.min_vram_gb(None) == 2.6  # nouvelle diarisation seule
     # Seuil imposé par l'environnement ; une variable vide vaut « selon le modèle »
-    settings_env.setenv("MIN_FREE_VRAM_GB", "4")
+    settings_env.setenv("MIN_FREE_VRAM_GB", "10")
     get_settings.cache_clear()
-    assert get_settings().min_vram_gb("large-v3") == 4
+    assert get_settings().min_vram_gb("small") == 10
     settings_env.setenv("MIN_FREE_VRAM_GB", "")
     get_settings.cache_clear()
-    assert get_settings().min_vram_gb("large-v3") == 10
+    assert get_settings().min_vram_gb("large-v3") == 4.9
+
+
+def test_gpu_config_follows_free_vram():
+    from app.profiles import choose_gpu_config
+
+    assert choose_gpu_config("large-v3", 22.0) == ("float16", 16)
+    assert choose_gpu_config("large-v3", 7.5) == ("int8_float16", 8)  # carte de 8 Go
+    assert choose_gpu_config("large-v3", 5.5) == ("int8_float16", 4)  # carte de 6 Go
+    assert choose_gpu_config("large-v3-turbo", 5.5) == ("float16", 16)
+    assert choose_gpu_config("small", 3.6) == ("float16", 16)
+    assert choose_gpu_config("small", 3.2) == ("int8_float16", 16)  # carte de 4 Go avec affichage
+    # BATCH_SIZE imposé : seule la précision s'adapte
+    assert choose_gpu_config("large-v3", 22.0, batch_override=8) == ("float16", 8)
+    assert choose_gpu_config("large-v3", 6.0, batch_override=8) == ("int8_float16", 8)
+
+
+def test_profiles_set_model_and_diarization_step(client, audio_file):
+    job = upload(client, audio_file, device="cpu")
+    assert (job["profile"], job["model"], job["diarization_step"]) == ("rapide", "small", 2.5)
+    job = upload(client, audio_file, device="cpu", profile="tres_rapide", num_speakers="3")
+    assert (job["model"], job["diarization_step"], job["num_speakers"]) == ("small", 5.0, 3)
+    job = upload(client, audio_file, device="cuda")
+    assert (job["profile"], job["model"], job["diarization_step"]) == ("tres_precis", "large-v3", 1.0)
+    job = wait_for(client, upload(client, audio_file, device="cuda", profile="rapide")["id"])
+    assert job["model"] == "large-v3-turbo"
+    md = client.get(f"/api/jobs/{job['id']}/transcript.md").text
+    assert "profile: rapide" in md and "model: large-v3-turbo" in md
+
+
+def test_small_card_greys_out_large_profiles(client, monkeypatch):
+    from app.api import system
+
+    async def gpu_4gb():
+        return [{"name": "Petite carte", "memory_total_mb": 4096, "memory_used_mb": 0,
+                 "memory_free_mb": 4096, "utilization_percent": 0}]
+
+    monkeypatch.setattr(system, "_gpu", gpu_4gb)
+    profiles = {p["id"]: p for p in client.get("/api/system").json()["options"]["profiles"]["cuda"]}
+    assert profiles["tres_rapide"]["available"] and profiles["rapide"]["available"]
+    assert not profiles["precis"]["available"] and not profiles["tres_precis"]["available"]
+    assert profiles["precis"]["reason"] == "4,9 Go de VRAM requis, carte de 4,0 Go"
 
 
 def test_cpu_only_host(client, audio_file, monkeypatch):
@@ -248,13 +291,11 @@ def test_progress_detail_column_added_to_old_database(settings_env):
         assert "progress_detail" in {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
 
 
-def test_batch_size_by_device(settings_env):
-    settings = get_settings()
-    assert settings.batch_size_for("cuda") == 16
-    assert settings.batch_size_for("cpu") == 4
+def test_cpu_batch_size(settings_env):
+    assert get_settings().cpu_batch_size() == 4
     settings_env.setenv("BATCH_SIZE", "8")
     get_settings.cache_clear()
-    assert get_settings().batch_size_for("cpu") == 8
+    assert get_settings().cpu_batch_size() == 8
 
 
 def test_format_size():

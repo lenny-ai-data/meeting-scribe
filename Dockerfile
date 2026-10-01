@@ -7,11 +7,9 @@ FROM ubuntu:24.04
 # Variante : cuda (GPU NVIDIA, amd64) ou cpu (amd64 et arm64)
 ARG FLAVOR=cuda
 ARG DEFAULT_DEVICE=cuda
-ARG DEFAULT_MODEL=large-v3
 
 ENV DEBIAN_FRONTEND=noninteractive \
     DEFAULT_DEVICE=${DEFAULT_DEVICE} \
-    DEFAULT_MODEL=${DEFAULT_MODEL} \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

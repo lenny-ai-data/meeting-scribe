@@ -43,6 +43,12 @@ def unload_ollama(base_url: str, timeout: float) -> list[str]:
     raise GpuBusyError(f"Ollama n'a pas libéré ses modèles ({', '.join(loaded)}) en {timeout:.0f} s.")
 
 
+def free_vram_gb() -> float:
+    import torch
+
+    return torch.cuda.mem_get_info()[0] / GiB
+
+
 def check_free_vram(min_free_gb: float) -> float:
     import torch
 
@@ -52,12 +58,13 @@ def check_free_vram(min_free_gb: float) -> float:
     log.info("VRAM libre : %.1f / %.1f Go", free / GiB, total / GiB)
     if total / GiB < min_free_gb:
         raise GpuBusyError(
-            f"Carte de {total / GiB:.1f} Go : trop petite pour ce modèle ({min_free_gb:g} Go de VRAM libre requis). "
-            "Choisissez large-v3-turbo, le CPU, ou réduisez BATCH_SIZE et MIN_FREE_VRAM_GB."
+            f"Carte de {total / GiB:.1f} Go : trop petite pour ce profil ({min_free_gb:g} Go de VRAM libre requis). "
+            "Choisissez un profil plus rapide, ou le CPU."
         )
     if free / GiB < min_free_gb:
         raise GpuBusyError(
             f"VRAM libre insuffisante : {free / GiB:.1f} Go sur {total / GiB:.1f} Go (minimum {min_free_gb:g} Go). "
-            "Un autre programme occupe la carte (Open WebUI qui a rechargé un modèle, Whishper…). Réessayez plus tard."
+            "Un autre programme occupe la carte (un modèle rechargé par un autre client d'Ollama, un autre service "
+            "de transcription…). Réessayez plus tard, ou choisissez un profil plus rapide."
         )
     return free / GiB

@@ -216,6 +216,7 @@ def render_transcript(job: dict, segments: list[dict], speakers: list[dict], dia
         "duration": fmt_ts(duration),
         "duration_seconds": round(duration),
         "language": job["language"],
+        "profile": job.get("profile"),
         "model": job["model"],
         "diarization": diarization_model,
         "speakers": speaking,

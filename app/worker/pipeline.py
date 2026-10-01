@@ -123,7 +123,7 @@ def run_rediarize(job: dict, task: dict, rep: Reporter) -> None:
     if not aligned_path.exists():
         raise PipelineError("Transcription alignée introuvable : relancez une transcription complète.")
     engine = make_engine(settings, job["device"], rep.detail)
-    engine.prepare_gpu(check_vram=True, model=job["model"])
+    engine.prepare_gpu(check_vram=True, model=None)  # diarisation seule
     audio = engine.load_audio(job_dir / "audio.wav")
     diarize_and_finish(job, engine, audio, read_json(aligned_path), rep)
 
@@ -134,7 +134,8 @@ def diarize_and_finish(job: dict, engine: Engine, audio, aligned: dict, rep: Rep
     settings = get_settings()
     job_dir = settings.job_dir(job["id"])
     rep.stage("diarizing")
-    diarization = engine.diarize(audio, job["num_speakers"], job["min_speakers"], job["max_speakers"], rep.progress)
+    diarization = engine.diarize(audio, job["num_speakers"], job["min_speakers"], job["max_speakers"],
+                                 job.get("diarization_step"), rep.progress)
     result = engine.assign_speakers(diarization, aligned)
     finalize(db.get_job(job["id"]), job_dir, diarization, result)
     db.update_job(job["id"], status="completed", progress=100, progress_detail=None, error=None,

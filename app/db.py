@@ -35,7 +35,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     external_ref TEXT,
     callback_url TEXT,
     callback_status TEXT,
+    profile TEXT,
     model TEXT NOT NULL,
+    diarization_step REAL,
     language TEXT NOT NULL,
     device TEXT NOT NULL,
     num_speakers INTEGER,
@@ -156,8 +158,9 @@ def init_db() -> None:
         conn.executescript(SCHEMA)
         # Colonnes ajoutées après la création des premières bases
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
-        if "progress_detail" not in columns:
-            conn.execute("ALTER TABLE jobs ADD COLUMN progress_detail TEXT")
+        for name, kind in (("progress_detail", "TEXT"), ("profile", "TEXT"), ("diarization_step", "REAL")):
+            if name not in columns:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {kind}")
         if conn.execute("SELECT COUNT(*) FROM prompts").fetchone()[0] == 0:
             ts = now_iso()
             conn.execute(

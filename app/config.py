@@ -4,12 +4,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# small : profil rapide sur CPU ; base et tiny écartés (WER 28 et 36 % en français, contre 15 % pour small)
-WHISPER_MODELS = ("large-v3", "large-v3-turbo", "small")
 LANGUAGES = ("fr", "en")
 DEVICES = ("cuda", "cpu")
-# VRAM libre exigée avant de lancer un job GPU (Go) : pic mesuré pendant la diarisation, avec une marge
-MIN_VRAM_GB = {"large-v3": 10.0, "large-v3-turbo": 6.0, "small": 4.0}
 
 APP_ROOT = Path(__file__).resolve().parent.parent
 
@@ -33,19 +29,16 @@ class Settings(BaseSettings):
 
     # Transcription
     hf_token: str = ""
-    default_model: str = "large-v3"
+    # Profil de performance par défaut (app/profiles.py) ; vide = « Rapide » sur CPU, « Très précis » sur GPU
+    default_profile: str = ""
     default_language: str = "fr"
     default_device: str = "cuda"
-    # Segments de 30 s traités par lot ; vide = 16 sur GPU, 4 sur CPU (même vitesse à 4 % près,
-    # mais une progression mise à jour toutes les 20 s environ au lieu d'une ou deux fois par job)
+    # Passages de 30 s transcrits par lot ; vide = selon la VRAM libre sur GPU (16, 8 ou 4), 4 sur CPU
+    # (même vitesse à 4 % près, mais une progression mise à jour toutes les 20 s environ)
     batch_size: int | None = None
-    # Seuil de VRAM libre imposé quel que soit le modèle (Go) ; vide = selon le modèle (MIN_VRAM_GB)
+    # Seuil de VRAM libre imposé quel que soit le profil (Go) ; vide = selon le modèle (profiles.min_vram_gb)
     min_free_vram_gb: float | None = None
     diarization_model: str = "pyannote/speaker-diarization-community-1"
-    # Pas des fenêtres de 10 s de la diarisation sur CPU (secondes) ; pyannote utilise 1 s par défaut,
-    # mais le calcul des empreintes vocales est proportionnel au nombre de fenêtres : 2,5 s divise
-    # le temps par 2,5 (203 s → 81 s pour 7 min 54) pour un écart de 4 % avec le pas de 1 s
-    cpu_diarization_step: float = 2.5
     # Copie locale du modèle de diarisation (embarquée dans l'image) : ni jeton ni réseau
     diarization_model_dir: Path = Path("/opt/models/pyannote/speaker-diarization-community-1")
     # Pipeline factice (tests, sans GPU ni WhisperX)
@@ -94,13 +87,15 @@ class Settings(BaseSettings):
     def diarization_ready(self) -> bool:
         return self.diarization_bundled or bool(self.hf_token)
 
-    def batch_size_for(self, device: str) -> int:
-        return self.batch_size or (16 if device == "cuda" else 4)
+    def cpu_batch_size(self) -> int:
+        return self.batch_size or 4
 
-    def min_vram_gb(self, model: str) -> float:
+    def min_vram_gb(self, model: str | None) -> float:
+        from .profiles import min_vram_gb
+
         if self.min_free_vram_gb is not None:
             return self.min_free_vram_gb
-        return MIN_VRAM_GB.get(model, max(MIN_VRAM_GB.values()))
+        return min_vram_gb(model)
 
     def job_dir(self, job_id: str) -> Path:
         return self.jobs_dir / job_id
