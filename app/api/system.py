@@ -58,6 +58,19 @@ async def _ollama() -> dict:
     return info
 
 
+def _status(settings, gpu: list[dict] | None, ollama: dict, running: bool) -> dict:
+    """Synthèse pour le voyant de l'interface : error (transcription impossible), busy ou ready."""
+    problems, warnings = [], []
+    if not settings.hf_token:
+        problems.append("HF_TOKEN manquant : la diarisation est impossible")
+    if not gpu and settings.default_device == "cuda" and not settings.fake_pipeline:
+        problems.append("GPU introuvable (nvidia-smi ne répond pas)")
+    if not ollama["reachable"]:
+        warnings.append("Ollama injoignable : pas de compte rendu local")
+    state = "error" if problems else "busy" if running else "ready"
+    return {"state": state, "problems": problems, "warnings": warnings}
+
+
 @router.get("/system", summary="État du service : GPU, Ollama, file d'attente, configuration")
 async def system(worker: Annotated[Worker, Depends(get_worker)]):
     settings = get_settings()
@@ -65,6 +78,7 @@ async def system(worker: Annotated[Worker, Depends(get_worker)]):
     current = worker.current
     return {
         "version": __version__,
+        "status": _status(settings, gpu, ollama, current is not None),
         "gpu": gpu,
         "ollama": ollama,
         "llm_api": {"configured": settings.llm_api_configured, "base_url": settings.llm_api_base_url or None,
@@ -81,6 +95,6 @@ async def system(worker: Annotated[Worker, Depends(get_worker)]):
         "options": {
             "models": WHISPER_MODELS, "languages": LANGUAGES, "devices": DEVICES,
             "default_model": settings.default_model, "default_language": settings.default_language,
-            "default_device": settings.default_device,
+            "default_device": settings.default_device, "owner_name": settings.owner_name or None,
         },
     }

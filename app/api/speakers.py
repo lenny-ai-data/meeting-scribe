@@ -131,6 +131,19 @@ def transcript_md(job_id: str, download: bool = Query(False, description="Forcer
     )
 
 
+@router.get("/jobs/{job_id}/timeline", tags=["transcript"],
+            summary="Frise : passages de parole par intervenant et enveloppe d'amplitude de l'audio")
+def timeline(job_id: str, bins: int = Query(240, ge=10, le=2000, description="Nombre de points de l'enveloppe")):
+    job = job_or_404(job_id)
+    require_completed(job)
+    return {
+        "job_id": job_id,
+        "duration": job["duration"],
+        "segments": transcript.speaker_blocks(load_segments(job)),
+        "peaks": transcript.waveform(job, bins),
+    }
+
+
 @router.get("/jobs/{job_id}/transcript.json", tags=["transcript"], summary="Segments et mots horodatés")
 def transcript_json(job_id: str):
     job = job_or_404(job_id)

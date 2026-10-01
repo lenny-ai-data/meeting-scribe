@@ -115,6 +115,11 @@ def test_summary_with_ollama(llm_client, audio_file):
     assert "point-hebdo_compte-rendu.md" in md.headers["content-disposition"]
     assert [s["id"] for s in client.get(f"/api/jobs/{job_id}/summaries").json()] == [summary["id"]]
 
+    # Retouche du compte rendu avant téléchargement
+    edited = client.patch(f"/api/summaries/{summary['id']}", json={"content": "## Contexte\nTexte corrigé."})
+    assert edited.status_code == 200 and edited.json()["content"] == "## Contexte\nTexte corrigé."
+    assert client.get(f"/api/summaries/{summary['id']}.md").text.endswith("## Contexte\nTexte corrigé.\n")
+
 
 def test_summary_with_openai_compatible_api(llm_client, audio_file):
     client, fake = llm_client
@@ -140,6 +145,7 @@ def test_summary_failure_is_reported(llm_client, audio_file):
     assert summary["status"] == "failed"
     assert "500" in summary["error"]
     assert client.get(f"/api/summaries/{summary['id']}.md").status_code == 409
+    assert client.patch(f"/api/summaries/{summary['id']}", json={"content": "x"}).status_code == 409
 
 
 def test_openai_provider_requires_configuration(client, audio_file):

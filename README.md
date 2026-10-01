@@ -28,11 +28,12 @@ Au premier job, les modèles sont téléchargés dans `./models` : environ 3 Go 
 
 ## Utilisation manuelle
 
-1. Déposer un `.m4a` ou un `.mp4`, ou coller une URL YouTube. Les options (modèle, langue, nombre d'intervenants, vocabulaire…) sont dans « Options ».
-2. Une fois le job terminé, écouter les 3 extraits de chaque intervenant et saisir les noms :
+1. Déposer un `.m4a` ou un `.mp4`, ou coller une URL YouTube, puis régler les options affichées sous la zone de dépôt : titre, date, vocabulaire, modèle, langue, calcul et nombre maximal d'intervenants.
+2. Les réunions sont listées dans la barre de gauche. Le voyant de l'en-tête indique l'état du service : vert prêt, doré occupé, rouge en panne (détail au survol).
+3. Une fois le job terminé, la frise montre qui parle quand ; un clic sur la frise lance la lecture à cet endroit. Nommer chaque voix directement dans le titre de sa carte, après avoir écouté l'extrait (▶) ou les trois (⌄) :
    - donner le même nom à deux intervenants les fusionne ;
    - si le nombre de voix est faux, « Relancer la diarisation » en imposant le bon nombre (environ 1 min, sans refaire la transcription).
-3. Récupérer le **transcript `.md`**, ou générer un **compte rendu** dans l'onglet du même nom : prompt système stocké (modifiable dans *Réglages*) plus les consignes propres à la réunion.
+4. Générer un **compte rendu** (prompt système stocké, modifiable dans *Réglages*, plus les consignes propres à la réunion), le retoucher au besoin avec « Modifier », puis le télécharger. Le **transcript `.md`** est dans la section qui précède, repliée par défaut.
 
 ## Utilisation automatique (n8n)
 
@@ -50,10 +51,12 @@ Voir [docs/n8n/](docs/n8n/README.md) : un workflow envoie les fichiers d'un doss
 | `PUT /api/jobs/{id}/speakers` | `{"S1": "Alice", "S2": "Bob"}` |
 | `POST /api/jobs/{id}/rediarize` | `{"num_speakers": 3}` |
 | `GET /api/jobs/{id}/transcript.md` / `.json` | Transcript (noms à jour) |
+| `GET /api/jobs/{id}/timeline?bins=240` | Frise : passages de parole par intervenant et enveloppe d'amplitude de l'audio |
 | `POST /api/jobs/{id}/summaries` | `{"meeting_prompt": "…", "provider": "ollama" \| "openai", "prompt_id": "…", "think": false}` |
 | `GET /api/summaries/{id}.md` | Compte rendu |
+| `PATCH /api/summaries/{id}` | `{"content": "…"}` : retoucher le texte d'un compte rendu terminé |
 | `GET/POST/PUT/DELETE /api/prompts` | Prompts système |
-| `GET /api/system` | GPU, Ollama, file d'attente, versions |
+| `GET /api/system` | GPU, Ollama, file d'attente, versions ; `status.state` = `error`, `busy` ou `ready` |
 
 Exemple :
 
@@ -94,6 +97,7 @@ Toutes les variables sont décrites dans [.env.example](.env.example). Les princ
 | `LLM_API_BASE_URL` / `LLM_API_KEY` / `LLM_API_MODEL` | — | API compatible OpenAI (OpenAI, Mistral, OpenRouter…) |
 | `API_TOKEN` / `CALLBACK_TOKEN` | — | Authentification de l'API, et jeton envoyé dans les callbacks |
 | `PUBLIC_BASE_URL` | — | Pour des liens absolus dans les callbacks |
+| `OWNER_NAME` | — | Nom proposé dans l'interface pour nommer un intervenant (vous-même) |
 
 YouTube :
 - yt-dlp est mis à jour à chaque démarrage (`YTDLP_AUTO_UPDATE=true`) ;

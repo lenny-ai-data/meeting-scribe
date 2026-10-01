@@ -94,6 +94,25 @@ def test_list_and_system(client, audio_file):
     assert info["fake_pipeline"] is True
     assert info["ollama"]["reachable"] is False
     assert "large-v3-turbo" in info["options"]["models"]
+    # Sans HF_TOKEN, le voyant est rouge ; Ollama injoignable n'est qu'un avertissement
+    assert info["status"]["state"] == "error"
+    assert any("HF_TOKEN" in p for p in info["status"]["problems"])
+    assert any("Ollama" in w for w in info["status"]["warnings"])
+    assert info["options"]["owner_name"] is None
+
+
+def test_system_ready_with_token(settings_env):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    settings_env.setenv("HF_TOKEN", "hf_test")
+    settings_env.setenv("OWNER_NAME", "Alice Martin")
+    with TestClient(create_app()) as client:
+        info = client.get("/api/system").json()
+    assert info["status"] == {"state": "ready", "problems": [],
+                              "warnings": ["Ollama injoignable : pas de compte rendu local"]}
+    assert info["options"]["owner_name"] == "Alice Martin"
 
 
 def test_api_token(settings_env, audio_file):

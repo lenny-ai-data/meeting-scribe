@@ -20,13 +20,13 @@
         selected: null,
         draft: { name: "", content: "", is_default: false },
         dirty: false,
-        system: null,
-        sys: "",
         token: getToken(),
         error: "",
 
+        get system() { return this.sysInfo; },
+
         async init() {
-          await Promise.all([this.loadPrompts(), this.loadSystem()]);
+          await this.loadPrompts();
         },
 
         async loadPrompts(selectId) {
@@ -35,11 +35,6 @@
             const target = this.prompts.find((p) => p.id === (selectId || this.selected)) || this.prompts[0];
             if (target) this.select(target, true);
           } catch (e) { this.error = e.message; }
-        },
-
-        async loadSystem() {
-          try { this.system = await api("system"); this.sys = await loadSystemBadge(); }
-          catch (e) { this.error = e.message; }
         },
 
         select(p, force = false) {
@@ -81,7 +76,7 @@
   </script>
   <script defer src="vendor/alpine.min.js"></script>
 </head>
-<body x-data="settingsPage()" x-cloak>
+<body x-data="withShell(settingsPage(), null, { sidebar: false })" x-cloak>
   <header class="top">
     <a class="brand" href="./"><img class="brand-logo" src="logo-mark.svg" alt=""><span>Meeting <span class="brand-accent">Scribe</span></span></a>
     <nav>
@@ -89,7 +84,9 @@
       <a href="settings.html" class="active">Réglages</a>
       <a href="docs" target="_blank">API</a>
     </nav>
-    <span class="sys" x-text="sys"></span>
+    <span class="status" :title="status.tooltip" @click="status.tooltip && toast(status.tooltip)">
+      <span class="led" :class="status.state"></span><span x-text="status.text"></span>
+    </span>
     <button class="theme-toggle small" type="button" onclick="cycleTheme()">Thème</button>
   </header>
 
@@ -127,7 +124,7 @@
       <h2>Système</h2>
       <template x-if="system">
         <div class="table-wrap">
-          <table>
+          <table class="system">
             <tbody>
               <tr><th>GPU</th><td>
                 <template x-for="g in system.gpu || []" :key="g.name">
@@ -143,7 +140,13 @@
               <tr><th>API LLM</th><td x-text="system.llm_api.configured ? `${system.llm_api.base_url} — ${system.llm_api.model}` : 'non configurée (LLM_API_BASE_URL, LLM_API_MODEL)'"></td></tr>
               <tr><th>Jeton Hugging Face</th><td x-text="system.hf_token ? 'présent' : 'absent : la diarisation échouera'"></td></tr>
               <tr><th>File d'attente</th><td x-text="`${system.queue.running ? '1 tâche en cours' : 'aucune tâche en cours'}, ${system.queue.queued} en attente`"></td></tr>
-              <tr><th>Versions</th><td class="hint" x-text="Object.entries(system.versions).map(([k, v]) => `${k} ${v || '—'}`).join(' · ') + ` · meeting-scribe ${system.version}`"></td></tr>
+              <tr><th>Versions</th><td>
+                <div class="versions">
+                  <template x-for="[k, v] in [...Object.entries(system.versions), ['meeting-scribe', system.version]]" :key="k">
+                    <span><span x-text="k"></span> <code x-text="v || '—'"></code></span>
+                  </template>
+                </div>
+              </td></tr>
             </tbody>
           </table>
         </div>
