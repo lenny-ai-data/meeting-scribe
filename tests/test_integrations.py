@@ -132,3 +132,11 @@ def test_youtube_transient_403_is_retried(fake_ytdlp, client, settings_env, tmp_
     resp = client.post("/api/jobs", data={"url": "https://www.youtube.com/watch?v=flaky"})
     job = wait_for(client, resp.json()["id"], timeout=90)
     assert job["status"] == "completed", job["error"]
+
+
+def test_web_files_are_revalidated(client):
+    resp = client.get("/app.js")
+    assert resp.status_code == 200 and resp.headers["cache-control"] == "no-cache"
+    again = client.get("/app.js", headers={"If-None-Match": resp.headers["etag"]})
+    assert again.status_code == 304
+    assert "cache-control" not in client.get("/api/health").headers

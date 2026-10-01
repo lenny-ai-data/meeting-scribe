@@ -297,6 +297,7 @@ Réglages issus de tests sur des enregistrements réels :
 ### Interface (`web/`)
 
 - **Sans étape de build** : Alpine.js, marked et DOMPurify sont stockés dans `web/vendor/`, sans CDN.
+- **`Cache-Control: no-cache`** sur tout ce qui n'est pas `/api/` (middleware de `app/main.py`) : le navigateur revalide chaque fichier (304 s'il n'a pas changé). Constaté après une mise à jour : un navigateur gardait l'ancien `app.js` avec le nouveau HTML, et la page restait vide jusqu'à un Ctrl+F5.
 - **Coquille commune** (`app.js`) : `withShell(page)` fusionne la barre latérale des réunions et le voyant d'état avec les données propres à la page. Les descripteurs sont copiés, pour que les accesseurs `get` restent calculés. Le balisage de l'en-tête et de la barre latérale est dupliqué dans les trois pages.
 - **Voyant d'état** : l'état vient de l'API (`/api/system` → `status`) :
   - `error` (rouge) si le modèle de diarisation n'est ni embarqué ni téléchargeable (`HF_TOKEN` absent), ou si le GPU est introuvable alors que `DEFAULT_DEVICE=cuda` ;

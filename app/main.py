@@ -48,6 +48,15 @@ def create_app() -> FastAPI:
         api.include_router(module.router)
     app.include_router(api)
 
+    @app.middleware("http")
+    async def revalidate_web(request, call_next):
+        # Interface : le navigateur revalide chaque fichier (ETag, réponse 304 s'il n'a pas changé). Sans cela,
+        # après une mise à jour, il peut garder l'ancien app.js avec le nouveau HTML et la page reste vide.
+        response = await call_next(request)
+        if not request.url.path.startswith("/api/"):
+            response.headers.setdefault("Cache-Control", "no-cache")
+        return response
+
     web_dir = get_settings().web_dir
     if web_dir.is_dir():
         app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
