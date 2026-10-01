@@ -67,6 +67,7 @@
     <button class="menu-toggle" type="button" @click="navOpen = !navOpen" aria-label="Réunions" x-html="ICONS.menu"></button>
     <a class="brand" href="./"><img class="brand-logo" src="logo-mark.svg" alt=""><span>Meeting <span class="brand-accent">Scribe</span></span></a>
     <nav>
+      <a href="./" class="active">Réunions</a>
       <a href="settings.html">Réglages</a>
       <a href="docs" target="_blank">API</a>
     </nav>
@@ -100,7 +101,8 @@
 
     <main>
       <section class="card">
-        <h2>Nouvelle transcription</h2>
+        <h1>Nouvelle transcription</h1>
+        <div class="meta page-sub"><span>Fichier audio ou vidéo, ou lien YouTube</span></div>
         <div class="dropzone" :class="{ over }"
              @click="$refs.file.click()"
              @dragover.prevent="over = true" @dragleave.prevent="over = false"
@@ -129,7 +131,7 @@
               <label for="f-date">Date de la réunion</label>
               <input id="f-date" type="datetime-local" x-model="form.meeting_date">
             </div>
-            <div>
+            <div class="grow">
               <label for="f-vocab">Vocabulaire (noms propres, sigles, jargon)</label>
               <textarea id="f-vocab" rows="3" placeholder="Ex. Acme, Dupont, CRM, n8n" x-model="form.vocabulary"></textarea>
             </div>
@@ -163,7 +165,7 @@
         </div>
 
         <div class="row" style="margin-top:20px">
-          <button class="primary" @click="submit()" :disabled="uploading">Transcrire</button>
+          <button class="cta" @click="submit()" :disabled="uploading">Transcrire</button>
           <template x-if="uploading">
             <div class="row" style="flex:1">
               <div class="progress" style="flex:1"><div :style="`width:${uploadProgress * 100}%`"></div></div>

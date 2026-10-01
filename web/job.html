@@ -360,6 +360,7 @@
     <button class="menu-toggle" type="button" @click="navOpen = !navOpen" aria-label="Réunions" x-html="ICONS.menu"></button>
     <a class="brand" href="./"><img class="brand-logo" src="logo-mark.svg" alt=""><span>Meeting <span class="brand-accent">Scribe</span></span></a>
     <nav>
+      <a href="./" class="active">Réunions</a>
       <a href="settings.html">Réglages</a>
       <a href="docs" target="_blank">API</a>
     </nav>
@@ -524,6 +525,25 @@
             </div>
           </details>
 
+          <!-- Transcript (replié par défaut) -->
+          <details class="card section" x-show="completed">
+            <summary>
+              <h2>Transcript</h2>
+              <span class="hint">Markdown horodaté, regroupé par intervenant</span>
+            </summary>
+            <div class="section-body">
+              <div class="row" style="margin-bottom:12px">
+                <a class="btn primary" :href="apiUrl(`jobs/${id}/transcript.md`, { download: 'true' })">Télécharger .md</a>
+                <button @click="copyTranscript()">Copier</button>
+                <a class="btn" :href="apiUrl(`jobs/${id}/transcript.json`)" target="_blank">JSON</a>
+                <span class="spacer"></span>
+                <span class="hint">Cliquez sur un horodatage pour écouter le passage.</span>
+              </div>
+              <details class="frontmatter"><summary>En-tête YAML</summary><pre><code x-text="transcriptHeader"></code></pre></details>
+              <div class="markdown" x-html="transcriptHtml" @click="seek($event)"></div>
+            </div>
+          </details>
+
           <!-- Compte rendu -->
           <details class="card section" open x-show="completed">
             <summary>
@@ -623,25 +643,6 @@
                   </template>
                 </div>
               </template>
-            </div>
-          </details>
-
-          <!-- Transcript (replié par défaut) -->
-          <details class="card section" x-show="completed">
-            <summary>
-              <h2>Transcript</h2>
-              <span class="hint">Markdown horodaté, regroupé par intervenant</span>
-            </summary>
-            <div class="section-body">
-              <div class="row" style="margin-bottom:12px">
-                <a class="btn primary" :href="apiUrl(`jobs/${id}/transcript.md`, { download: 'true' })">Télécharger .md</a>
-                <button @click="copyTranscript()">Copier</button>
-                <a class="btn" :href="apiUrl(`jobs/${id}/transcript.json`)" target="_blank">JSON</a>
-                <span class="spacer"></span>
-                <span class="hint">Cliquez sur un horodatage pour écouter le passage.</span>
-              </div>
-              <details class="frontmatter"><summary>En-tête YAML</summary><pre><code x-text="transcriptHeader"></code></pre></details>
-              <div class="markdown" x-html="transcriptHtml" @click="seek($event)"></div>
             </div>
           </details>
         </div>

@@ -235,9 +235,10 @@ function jobLed(status) {
   return status === "failed" ? "error" : "idle";
 }
 
-function shell(currentId = null) {
+function shell(currentId = null, { sidebar = true } = {}) {
   return {
     currentId,
+    sidebar,
     meetings: [],
     meetingsTotal: 0,
     sysInfo: null,
@@ -247,8 +248,8 @@ function shell(currentId = null) {
 
     async refreshShell() {
       clearTimeout(this.shellTimer);
-      const [jobs, sys] = await Promise.allSettled([api("jobs?limit=100"), api("system")]);
-      if (jobs.status === "fulfilled") {
+      const [jobs, sys] = await Promise.allSettled([this.sidebar ? api("jobs?limit=100") : null, api("system")]);
+      if (jobs.status === "fulfilled" && jobs.value) {
         this.meetings = jobs.value.items;
         this.meetingsTotal = jobs.value.total;
       }
@@ -266,9 +267,10 @@ function shell(currentId = null) {
 
 // Données Alpine d'une page : la coquille commune, puis les propriétés propres à la page.
 // Les descripteurs sont copiés tels quels pour que les accesseurs (get …) restent calculés.
-function withShell(page, currentId = null) {
+// options.sidebar = false : page sans barre latérale (Réglages), la liste des réunions n'est pas chargée.
+function withShell(page, currentId = null, options = {}) {
   const data = {};
-  Object.defineProperties(data, Object.getOwnPropertyDescriptors(shell(currentId)));
+  Object.defineProperties(data, Object.getOwnPropertyDescriptors(shell(currentId, options)));
   Object.defineProperties(data, Object.getOwnPropertyDescriptors(page));
   data.init = async function () {
     await this.refreshShell();

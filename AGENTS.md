@@ -226,7 +226,8 @@ Réglages issus de tests sur des enregistrements réels :
   - `ready` (vert) sinon.
   - Ollama injoignable n'est qu'un avertissement (`warnings`), affiché dans l'infobulle.
 - **Fond** : trois halos aux couleurs de la vidéo de présentation, plus une trame de points, insérés par `app.js` (`.backdrop`). Ils dérivent lentement, sauf si `prefers-reduced-motion` est actif. Leur opacité est plus faible en clair. Les cartes sont translucides (`backdrop-filter`).
-- **Page d'une réunion** : sections dépliantes (`<details class="card section">`) dans cet ordre : Intervenants, Compte rendu, puis Transcript, replié par défaut. Ce choix de l'utilisateur tient au fait que le transcript n'est pas le cœur de l'usage.
+- **Page d'une réunion** : sections dépliantes (`<details class="card section">`) dans cet ordre : Intervenants, Transcript (replié par défaut, car ce n'est pas le cœur de l'usage), puis Compte rendu. Ordre et repli choisis par l'utilisateur.
+- **Réglages** : pas de barre latérale (`withShell(page, null, { sidebar: false })`), mais le menu « Réunions » reste dans l'en-tête de toutes les pages.
 - **Thème** : Auto, Clair ou Sombre, choisi dans l'en-tête et mémorisé dans `localStorage` (`meeting-scribe.theme`).
   - **Mécanisme** : attribut `data-theme` sur `<html>`. Les variables sombres sont définies deux fois : sous `@media (prefers-color-scheme: dark) :root:not([data-theme="light"])` et sous `:root[data-theme="dark"]`.
   - **Logo** : un SVG chargé en `<img>` ne voit que le thème du système. D'où les variantes figées `logo-mark-light.svg` et `logo-mark-dark.svg`, choisies par `app.js` quand le thème est forcé.

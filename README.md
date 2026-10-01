@@ -33,7 +33,7 @@ Au premier job, les modèles sont téléchargés dans `./models` : environ 3 Go 
 3. Une fois le job terminé, la frise montre qui parle quand ; un clic sur la frise lance la lecture à cet endroit. Nommer chaque voix directement dans le titre de sa carte, après avoir écouté l'extrait (▶) ou les trois (⌄) :
    - donner le même nom à deux intervenants les fusionne ;
    - si le nombre de voix est faux, « Relancer la diarisation » en imposant le bon nombre (environ 1 min, sans refaire la transcription).
-4. Générer un **compte rendu** (prompt système stocké, modifiable dans *Réglages*, plus les consignes propres à la réunion), le retoucher au besoin avec « Modifier », puis le télécharger. Le **transcript `.md`** est dans la dernière section, repliée par défaut.
+4. Générer un **compte rendu** (prompt système stocké, modifiable dans *Réglages*, plus les consignes propres à la réunion), le retoucher au besoin avec « Modifier », puis le télécharger. Le **transcript `.md`** est dans la section qui précède, repliée par défaut.
 
 ## Utilisation automatique (n8n)
 
