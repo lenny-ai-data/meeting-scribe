@@ -24,8 +24,17 @@ class PipelineError(ScribeError):
     pass
 
 
+def _clamp(percent: float) -> float:
+    return round(min(max(percent, 0.0), 100.0), 1)
+
+
 class Reporter:
-    """Écrit l'étape et la progression du job en base (au plus une écriture par seconde)."""
+    """Écrit l'étape, la progression et son détail en base.
+
+    Les moteurs signalent souvent leur avancée par rafales (WhisperX : tout un lot de segments
+    en quelques millisecondes) : une avancée d'au moins un demi-point est donc toujours écrite,
+    les plus petites au plus une fois par seconde.
+    """
 
     def __init__(self, job_id: str):
         self.job_id = job_id
@@ -34,15 +43,25 @@ class Reporter:
 
     def stage(self, status: str) -> None:
         log.info("Étape : %s", status)
-        db.update_job(self.job_id, status=status, progress=0)
+        db.update_job(self.job_id, status=status, progress=0, progress_detail=None)
         self._last_value = 0.0
 
     def progress(self, percent: float) -> None:
         now = time.monotonic()
-        value = round(min(max(percent, 0.0), 100.0), 1)
-        if value > self._last_value and (now - self._last_write >= 1.0 or value >= 100.0):
+        value = _clamp(percent)
+        if value <= self._last_value:
+            return
+        if value >= 100.0 or value - self._last_value >= 0.5 or now - self._last_write >= 1.0:
             db.update_job(self.job_id, progress=value)
             self._last_write, self._last_value = now, value
+
+    def detail(self, text: str | None, percent: float | None = None) -> None:
+        """Précise l'étape en cours (téléchargement d'un modèle…) ; `percent` fixe la barre, même en recul."""
+        fields: dict = {"progress_detail": text}
+        if percent is not None:
+            fields["progress"] = self._last_value = _clamp(percent)
+            self._last_write = time.monotonic()
+        db.update_job(self.job_id, **fields)
 
 
 def run_transcribe(job: dict, task: dict, rep: Reporter) -> None:
@@ -81,7 +100,7 @@ def run_transcribe(job: dict, task: dict, rep: Reporter) -> None:
         fields["meeting_date"] = recorded.astimezone(tz).isoformat(timespec="seconds")
     db.update_job(job["id"], **fields)
 
-    engine = make_engine(settings, job["device"])
+    engine = make_engine(settings, job["device"], rep.detail)
     engine.prepare_gpu(check_vram=True, model=job["model"])
     audio = engine.load_audio(wav)
 
@@ -103,7 +122,7 @@ def run_rediarize(job: dict, task: dict, rep: Reporter) -> None:
     aligned_path = job_dir / "aligned.json"
     if not aligned_path.exists():
         raise PipelineError("Transcription alignée introuvable : relancez une transcription complète.")
-    engine = make_engine(settings, job["device"])
+    engine = make_engine(settings, job["device"], rep.detail)
     engine.prepare_gpu(check_vram=True, model=job["model"])
     audio = engine.load_audio(job_dir / "audio.wav")
     diarize_and_finish(job, engine, audio, read_json(aligned_path), rep)
@@ -118,7 +137,8 @@ def diarize_and_finish(job: dict, engine: Engine, audio, aligned: dict, rep: Rep
     diarization = engine.diarize(audio, job["num_speakers"], job["min_speakers"], job["max_speakers"], rep.progress)
     result = engine.assign_speakers(diarization, aligned)
     finalize(db.get_job(job["id"]), job_dir, diarization, result)
-    db.update_job(job["id"], status="completed", progress=100, error=None, finished_at=db.now_iso())
+    db.update_job(job["id"], status="completed", progress=100, progress_detail=None, error=None,
+                  finished_at=db.now_iso())
 
 
 RUNNERS = {"transcribe": run_transcribe, "rediarize": run_rediarize}

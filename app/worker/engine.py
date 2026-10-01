@@ -14,6 +14,12 @@ import numpy as np
 from ..config import Settings
 
 Progress = Callable[[float], None]  # pourcentage 0-100
+# Précision affichée sous la barre (texte, ou None pour l'effacer), avec éventuellement un pourcentage
+Detail = Callable[[str | None, float | None], None]
+
+
+def no_detail(text: str | None, percent: float | None = None) -> None:
+    pass
 
 
 class Engine(Protocol):
@@ -27,12 +33,12 @@ class Engine(Protocol):
     def assign_speakers(self, diarization: list[dict], aligned: dict) -> dict: ...
 
 
-def make_engine(settings: Settings, device: str) -> Engine:
+def make_engine(settings: Settings, device: str, on_detail: Detail = no_detail) -> Engine:
     if settings.fake_pipeline:
         return FakeEngine(settings.fake_pipeline_delay)
     from .whisperx_engine import WhisperXEngine
 
-    return WhisperXEngine(settings, device)
+    return WhisperXEngine(settings, device, on_detail)
 
 
 class FakeEngine:
