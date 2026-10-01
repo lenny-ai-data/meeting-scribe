@@ -124,7 +124,7 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
   2. pour chaque modèle chargé, `POST /api/generate {"keep_alive": 0}`, ou `/api/embed` pour un modèle d'embedding ;
   3. attente de la libération (`OLLAMA_UNLOAD_TIMEOUT`, 30 s).
   - **Quand** : au début de la transcription, au début d'une `rediarize`, puis de nouveau avant l'alignement.
-  - **Contrôle de la VRAM** : au début seulement, vérifier qu'il reste au moins `MIN_FREE_VRAM_GB` (10 Go) de libre. En dessous, le job échoue avec un message clair, plutôt que d'aller jusqu'à une erreur CUDA de mémoire.
+  - **Contrôle de la VRAM** : au début seulement, vérifier qu'il reste assez de VRAM libre : seuil selon le modèle (`MIN_VRAM_GB` dans `config.py` : 10 Go en `large-v3`, 6 Go en `large-v3-turbo`, pour les cartes de 8 Go), ou `MIN_FREE_VRAM_GB` s'il est défini. En dessous, le job échoue avec un message clair, plutôt que d'aller jusqu'à une erreur CUDA de mémoire. Le pic réellement alloué par torch est écrit dans `pipeline.log` après chaque étape.
   - **Pourquoi** : Open WebUI peut recharger un modèle à tout moment.
   - Tout cela est sauté si le job tourne en `device=cpu`.
 - **Reprise après redémarrage** : une tâche restée `running` est remise en file une seule fois (`max_attempts=2`), puis marquée en échec.
@@ -149,8 +149,12 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 - **`interleaved_context`** n'existe pas en 3.8.6 : il n'est activé que si `inspect.signature` le trouve, ce qui prépare les versions suivantes.
 - **Vocabulaire** (noms propres, jargon) : passé en `asr_options.initial_prompt`.
 - **Diarisation** : `pyannote/speaker-diarization-community-1`.
-  - Le dépôt est à accès restreint : il faut un `HF_TOKEN` en lecture et les conditions acceptées sur Hugging Face.
+  - Le dépôt est à accès restreint, mais le modèle est sous CC-BY-4.0, donc redistribuable avec attribution. **Il est embarqué dans l'image** (`DIARIZATION_MODEL_DIR`, 32 Mo, chemins relatifs `$model/…` dans `config.yaml`) : les utilisateurs n'ont besoin ni de jeton ni de réseau (vérifié avec `HF_HUB_OFFLINE=1`). Sans copie locale, repli sur l'identifiant HF et `HF_TOKEN`.
   - `assign_word_speakers(fill_nearest=True)`.
+- **Image CPU : WhisperX, pas Parakeet ni Canary.** Mesures du 01/10/2026 sur l'interview de 7 min 54, i7-12700, 10 threads :
+  - Parakeet TDT 0.6B v3 (onnx-asr, int8 ou fp32) : 33 s, mais dérive en anglais au milieu des phrases (88 à 122 mots anglais sur environ 1 000) et passages perdus ; le modèle n'a pas de langue forcée ;
+  - Canary-1B-v2 (onnx-asr, int8, `language="fr"`) : 574 s, boucles d'hallucinations, pas d'horodatage par mot ;
+  - Whisper large-v3-turbo int8 (faster-whisper, par lots) : 92 s, 1 540 mots, aucune dérive. Puis alignement 24 s, diarisation pyannote 199 s : environ 0,7 × la durée de la réunion au total sur CPU.
 - **Date de réunion par défaut** : `creation_time` du fichier (les `.m4a` d'iPhone la portent), sinon la date de dépôt. Pour YouTube, la date de publication.
 
 ### Intervenants

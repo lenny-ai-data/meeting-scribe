@@ -131,11 +131,12 @@ Toutes les variables sont dans [.env.example](.env.example), commentées. Après
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `HF_TOKEN` | — | **Obligatoire.** Jeton Hugging Face pour la diarisation |
+| `HF_TOKEN` | — | Jeton Hugging Face. Inutile si le modèle de diarisation est embarqué dans l'image (`DIARIZATION_MODEL_DIR`) |
 | `DEFAULT_MODEL` | `large-v3` | `large-v3` (plus précis) ou `large-v3-turbo` (plus rapide, moins de VRAM) |
 | `DEFAULT_LANGUAGE` | `fr` | `fr` ou `en` |
 | `DEFAULT_DEVICE` | `cuda` | `cuda` ou `cpu` |
-| `MIN_FREE_VRAM_GB` | `10` | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA |
+| `MIN_FREE_VRAM_GB` | selon le modèle | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA. Par défaut : 10 Go en `large-v3`, 6 Go en `large-v3-turbo` |
+| `DIARIZATION_MODEL_DIR` | `/opt/models/pyannote/speaker-diarization-community-1` | Copie locale du modèle pyannote ; si elle existe, ni jeton ni réseau ne sont nécessaires |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama de l'hôte |
 | `OLLAMA_MODEL` | `qwen3.8:27b` | Modèle des comptes rendus |
 | `OLLAMA_MAX_CTX` | `65536` | Plafond du contexte ; le contexte réel est ajusté à la longueur du transcript |
