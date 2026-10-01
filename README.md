@@ -21,7 +21,6 @@ Service auto-hébergé de transcription de réunions, en français ou en anglais
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Utilisation](#utilisation)
-- [Automatisation](#automatisation)
 - [API en bref](#api-en-bref)
 - [Format du transcript](#format-du-transcript)
 - [Exploitation](#exploitation)
@@ -79,16 +78,17 @@ Deux images, selon la machine :
 
 | | Image `cuda` | Image `cpu` |
 |---|---|---|
-| Pour | PC ou serveur avec carte NVIDIA | PC sans carte NVIDIA, Mac Apple Silicon |
-| Système | Linux x86_64, ou Windows 10/11 avec Docker Desktop (WSL2) | Linux, Windows ou macOS (x86_64 ou arm64) |
-| GPU | NVIDIA, 4 Go de VRAM au moins (6 Go pour tous les profils) ; pilote 570 ou plus récent | aucun |
+| Pour | PC ou station avec carte graphique (NVIDIA) | PC sans carte graphique ou Mac |
+| Système | Linux x86_64, ou Windows 10/11 avec Docker Desktop | Linux, Windows ou macOS (x86_64 ou arm64) |
+| GPU | NVIDIA > 4 Go de VRAM et pilote > 570 | aucun |
 | Docker | Docker Engine et Compose v2, avec le [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) sous Linux | Docker Engine et Compose v2, ou Docker Desktop |
 | Mémoire vive | 16 Go | 16 Go |
 | Disque | environ 20 Go (image 13,5 Go, modèles 5 Go) | environ 8 Go (image 4,5 Go, modèles 3 Go) |
-| Vitesse (8 min d'audio) | 16 à 26 s sur une RTX 3090, selon le profil | 1 min 50 à 4 min 50 sur un i7-12700, selon le profil ; 2 à 3 fois plus sur un portable |
-| Ollama | facultatif, pour les comptes rendus en local | idem, ou une API distante |
+| Vitesse (10 min d'audio) | 20-60 s selon le profil/GPU | 3-10 min selon le profil/CPU |
+| Ollama | facultatif, uniquement pour les comptes rendus en local | idem |
+| Clé API | facultatif, uniquement pour les comptes rendus | idem |
 
-La VRAM nécessaire dépend du profil (voir [Profils de performance](#profils-de-performance)). L'image `cuda` embarque CUDA 12.8 par les roues de PyTorch : rien à installer côté CUDA.
+La VRAM nécessaire dépend du profil (voir [Profils de performance](#profils-de-performance)). L'image `cuda` embarque CUDA 12.8 par les roues de PyTorch.
 
 Vérifier que Docker voit le GPU (image `cuda`) :
 
@@ -163,9 +163,9 @@ Toutes les variables sont dans [.env.example](.env.example), commentées. Après
 | `DEFAULT_PROFILE` | `rapide` sur CPU, `tres_precis` sur GPU | Profil de performance proposé par défaut : `tres_rapide`, `rapide`, `precis` ou `tres_precis` |
 | `DEFAULT_LANGUAGE` | `fr` | `fr` ou `en` |
 | `DEFAULT_DEVICE` | `cuda` | `cuda` ou `cpu` |
-| `BATCH_SIZE` | selon la VRAM sur GPU, 4 sur CPU | Passages de 30 s transcrits par lot. Sur GPU, 16, 8 ou 4 selon la VRAM libre ; sur CPU, 4 met à jour la progression toutes les 20 s environ, pour 4 % de temps en plus. Une valeur fixe désactive le choix automatique |
-| `MIN_FREE_VRAM_GB` | selon le profil | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA. Par défaut : 5 Go en `large-v3`, 3 Go en `large-v3-turbo`, 2,6 Go en `small` |
-| `DIARIZATION_MODEL_DIR` | `/opt/models/pyannote/speaker-diarization-community-1` | Copie locale du modèle pyannote ; si elle existe, ni jeton ni réseau ne sont nécessaires |
+| `BATCH_SIZE` | selon la VRAM sur GPU, 4 sur CPU | Passages de 30 s transcrits par lot. Sur GPU, 16, 8 ou 4 selon la VRAM libre, 4 sur CPU. Une valeur fixe désactive le choix automatique |
+| `MIN_FREE_VRAM_GB` | selon le profil | En dessous, le job échoue et une alerte est levée. Par défaut : 5 Go en `large-v3`, 3 Go en `large-v3-turbo`, 2,6 Go en `small` |
+| `DIARIZATION_MODEL_DIR` | `/opt/models/pyannote/speaker-diarization-community-1` | Copie locale du modèle pyannote, si elle existe, ni jeton ni réseau ne sont nécessaires |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama de l'hôte (valeur initiale, modifiable dans *Réglages*) |
 | `OLLAMA_MODEL` | — | Modèle des comptes rendus ; vide = premier modèle installé |
 | `OLLAMA_UNLOAD_BEFORE_GPU` | automatique | Décharger Ollama avant une transcription GPU ; par défaut, seulement s'il tourne sur la même machine |
@@ -265,33 +265,6 @@ Pour des comptes rendus sans GPU, préférer une API distante, ou un Ollama sur 
 4. **Compte rendu** : le générer (prompt système plus consignes propres à la réunion), le retoucher au besoin avec « Modifier », puis le télécharger. Le **transcript `.md`** est dans la section qui précède, repliée par défaut.
 
 La date de la réunion est préremplie avec la date d'enregistrement du fichier quand elle est connue (c'est le cas des mémos vocaux d'iPhone), sinon avec la date de dépôt ; pour YouTube, la date de publication.
-
-## Automatisation
-
-Tout passe par l'API ; la manière la plus simple est d'y associer un **callback**.
-
-```mermaid
-sequenceDiagram
-    participant D as Dossier cloud
-    participant N as n8n
-    participant M as Meeting Scribe
-    D->>N: nouveau fichier
-    N->>M: POST /api/jobs (file, external_ref, callback_url)
-    M-->>N: 202 + id du job
-    Note over M: transcription en file
-    M->>N: callback job.completed (Markdown inclus)
-    N->>D: dépôt du transcript .md
-    Note over M: intervenants nommés dans l'interface
-    M->>N: callback job.speakers_updated
-    N->>D: transcript .md mis à jour
-```
-
-- Événements : `job.completed`, `job.failed`, `job.speakers_updated`, `summary.completed`.
-- Le Markdown est inclus dans le message : pas besoin d'une seconde requête.
-- `external_ref` (par exemple l'identifiant du fichier source) est renvoyé tel quel.
-- En cas d'échec, 3 nouvelles tentatives (après 5, 15 puis 45 s) ; le résultat est dans le champ `callback_status` du job.
-
-Deux workflows n8n prêts à importer (Google Drive → transcription → Google Drive) et le détail des messages sont dans [docs/n8n/](docs/n8n/README.md).
 
 ## API en bref
 

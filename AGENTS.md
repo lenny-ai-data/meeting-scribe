@@ -6,8 +6,7 @@ Les particularités d'une installation (adresses, matériel, tâches locales) vo
 
 Pour le reste :
 - l'usage, l'API et la configuration sont dans le [README](README.md) ;
-- toutes les variables d'environnement sont dans [.env.example](.env.example) ;
-- l'intégration n8n est dans [docs/n8n/README.md](docs/n8n/README.md).
+- toutes les variables d'environnement sont dans [.env.example](.env.example).
 
 ## 1. Le projet
 
@@ -107,7 +106,6 @@ n8n, agent ─┤   /api/*  ──► SQLite (WAL) : jobs, speakers, tasks, prom
 | `app/callbacks.py` | Webhooks sortants |
 | `web/` | Interface : `index.html`, `job.html`, `settings.html`, `app.js`, `style.css`, `vendor/` (Alpine.js, marked, DOMPurify), logos et favicons |
 | `tests/` | pytest : jobs, GPU, intervenants et rendu, comptes rendus, intégrations (YouTube, callbacks, auth) |
-| `docs/n8n/` | Deux workflows à importer et leur documentation |
 | `docs/branding/` | Logo d'origine et `make_logo.py`, qui génère tous les SVG, ICO et PNG de `web/` |
 
 ## 5. Journal des décisions
@@ -284,7 +282,6 @@ Réglages issus de tests sur des enregistrements réels :
   - en-têtes `X-Scribe-Event`, et `X-Scribe-Token` si `CALLBACK_TOKEN` est défini ;
   - 4 tentatives au total (relances après 5, 15 puis 45 s) ; le résultat est visible dans le champ `callback_status` ;
   - liens absolus si `PUBLIC_BASE_URL` est défini.
-- **Webhook n8n** : les workflows fournis écoutent sur `/webhook/meeting-scribe` (voir `docs/n8n/`).
 - **Auth** : `API_TOKEN` est vide par défaut, le service étant pensé pour un réseau local ; le définir dès que le service est exposé au-delà. `/api/health` reste toujours ouvert pour le healthcheck.
 
 ### Interface (`web/`)
