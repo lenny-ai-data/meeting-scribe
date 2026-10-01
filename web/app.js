@@ -1,5 +1,52 @@
 // Client de l'API partagé par les pages. Toutes les URL sont relatives (accès depuis un autre poste du LAN).
 
+// --- Thème : Auto (suit le système), Clair ou Sombre, mémorisé dans le navigateur ---------------
+// Ce script est chargé dans <head> : le thème est appliqué avant l'affichage (pas de flash).
+
+const THEME_KEY = "meeting-scribe.theme";
+const THEMES = ["auto", "light", "dark"];
+const THEME_LABELS = { auto: "Auto", light: "Clair", dark: "Sombre" };
+const THEME_ICONS = {
+  auto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>',
+  light: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  dark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>',
+};
+const THEME_COLORS = { light: "#ffffff", dark: "#171624" };
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+function getThemePref() {
+  try { return THEMES.includes(localStorage.getItem(THEME_KEY)) ? localStorage.getItem(THEME_KEY) : "auto"; }
+  catch { return "auto"; }
+}
+
+function applyTheme(pref = getThemePref()) {
+  const root = document.documentElement;
+  if (pref === "auto") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", pref);
+  const effective = pref === "auto" ? (systemDark.matches ? "dark" : "light") : pref;
+  // Le SVG d'une balise <img> ne voit que le thème du système : variantes figées si le thème est forcé
+  document.querySelectorAll("img.brand-logo").forEach((img) => {
+    img.src = pref === "auto" ? "logo-mark.svg" : `logo-mark-${effective}.svg`;
+  });
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    meta.content = pref === "auto" ? (meta.media.includes("dark") ? THEME_COLORS.dark : THEME_COLORS.light) : THEME_COLORS[effective];
+  });
+  document.querySelectorAll("button.theme-toggle").forEach((btn) => {
+    btn.innerHTML = `${THEME_ICONS[pref]}<span>${THEME_LABELS[pref]}</span>`;
+    btn.title = `Thème : ${THEME_LABELS[pref]} (cliquer pour changer)`;
+  });
+}
+
+function cycleTheme() {
+  const next = THEMES[(THEMES.indexOf(getThemePref()) + 1) % THEMES.length];
+  try { localStorage.setItem(THEME_KEY, next); } catch { /* stockage indisponible : choix non mémorisé */ }
+  applyTheme(next);
+}
+
+applyTheme();
+document.addEventListener("DOMContentLoaded", () => applyTheme());
+systemDark.addEventListener("change", () => applyTheme());
+
 const TOKEN_KEY = "meeting-scribe.token";
 
 function getToken() {

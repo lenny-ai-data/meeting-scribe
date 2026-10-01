@@ -1,24 +1,33 @@
 """Génère les SVG du logo (vectorisation de logo-original.jpg) : `uv run python docs/branding/make_logo.py`.
 
 Les parties bleu nuit (haut de la capsule, bas du support, pied) s'éclaircissent en mode sombre.
+Variantes : automatique (suit le système), claire et sombre figées (thème forcé dans l'interface).
 """
 
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-MARK = """\
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}" role="img" aria-label="Meeting Scribe">
-  <style>
+LIGHT = """\
     .navy {{ stroke: #07032e; }}
     .shade-end {{ stop-color: #0a0634; }}
     .cap-top {{ stop-color: #0d0b55; }}
-    @media (prefers-color-scheme: dark) {{
-      .navy {{ stroke: #e4e1ff; }}
-      .shade-end {{ stop-color: #0a0634; stop-opacity: 0; }}
-      .cap-top {{ stop-color: #2b30c4; }}
-    }}
-  </style>
+"""
+DARK = """\
+    .navy {{ stroke: #e4e1ff; }}
+    .shade-end {{ stop-color: #0a0634; stop-opacity: 0; }}
+    .cap-top {{ stop-color: #2b30c4; }}
+"""
+STYLES = {
+    "auto": LIGHT + "    @media (prefers-color-scheme: dark) {{\n" + "".join("  " + l + "\n" for l in DARK.splitlines()) + "    }}\n",
+    "light": LIGHT,
+    "dark": DARK,
+}
+
+MARK = """\
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}" role="img" aria-label="Meeting Scribe">
+  <style>
+{style}  </style>
   <defs>
     <linearGradient id="ms-cap" x1="0.15" y1="0" x2="0.85" y2="1">
       <stop offset="0" class="cap-top"/>
@@ -56,12 +65,17 @@ MARK = """\
 </svg>
 """
 
+TIGHT = "105 443 176 282"   # cadrage serré (en-tête)
+SQUARE = "58 446 270 270"   # carré (favicon)
 OUTPUTS = {
-    "web/logo-mark.svg": "105 443 176 282",   # cadrage serré (en-tête)
-    "web/favicon.svg": "58 446 270 270",      # carré (favicon)
+    "web/logo-mark.svg": (TIGHT, "auto"),
+    "web/logo-mark-light.svg": (TIGHT, "light"),   # thème forcé par le sélecteur de l'interface
+    "web/logo-mark-dark.svg": (TIGHT, "dark"),
+    "web/favicon.svg": (SQUARE, "auto"),
 }
 
 if __name__ == "__main__":
-    for path, viewbox in OUTPUTS.items():
-        (ROOT / path).write_text(MARK.format(viewbox=viewbox), encoding="utf-8")
+    for path, (viewbox, theme) in OUTPUTS.items():
+        style = STYLES[theme].replace("{{", "{").replace("}}", "}")
+        (ROOT / path).write_text(MARK.format(viewbox=viewbox, style=style), encoding="utf-8")
         print("écrit", path)

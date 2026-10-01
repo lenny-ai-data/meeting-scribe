@@ -90,13 +90,14 @@
 </head>
 <body x-data="home()" x-cloak>
   <header class="top">
-    <a class="brand" href="./"><img src="logo-mark.svg" alt=""><span>Meeting <span class="brand-accent">Scribe</span></span></a>
+    <a class="brand" href="./"><img class="brand-logo" src="logo-mark.svg" alt=""><span>Meeting <span class="brand-accent">Scribe</span></span></a>
     <nav>
       <a href="./" class="active">Réunions</a>
       <a href="settings.html">Réglages</a>
       <a href="docs" target="_blank">API</a>
     </nav>
     <span class="sys" x-text="sys"></span>
+    <button class="theme-toggle small" type="button" onclick="cycleTheme()">Thème</button>
   </header>
 
   <main>
