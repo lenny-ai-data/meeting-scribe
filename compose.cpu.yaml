@@ -1,0 +1,29 @@
+# Meeting Scribe sans GPU (PC, Mac Apple Silicon) : docker compose -f compose.cpu.yaml up -d
+# Transcription en large-v3-turbo sur le processeur : compter environ 0,7 × la durée de la réunion.
+services:
+  meeting-scribe:
+    image: ghcr.io/lenny-ai-data/meeting-scribe:cpu
+    build:
+      context: .
+      args:
+        FLAVOR: cpu
+        DEFAULT_DEVICE: cpu
+        DEFAULT_MODEL: large-v3-turbo
+      secrets:
+        - hf_token
+    container_name: meeting-scribe
+    restart: unless-stopped
+    ports:
+      - "8090:8000"
+    env_file:
+      - path: .env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # pour joindre Ollama ou LM Studio sur l'hôte
+    volumes:
+      - ./data:/data
+      - ./models:/models
+
+secrets:
+  hf_token:
+    environment: HF_TOKEN
