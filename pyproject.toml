@@ -16,8 +16,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Pile GPU, installée dans l'image Docker (`uv sync --extra gpu`)
+# Pile de transcription, installée dans l'image Docker : `uv sync --extra gpu` (CUDA) ou `--extra cpu`
 gpu = [
+    "whisperx==3.8.6",
+    "torch==2.8.*",
+    "torchaudio==2.8.*",
+    "torchvision==0.23.*",
+]
+cpu = [
     "whisperx==3.8.6",
     "torch==2.8.*",
     "torchaudio==2.8.*",
@@ -27,14 +33,23 @@ gpu = [
 [dependency-groups]
 dev = ["pytest>=8"]
 
+[tool.uv]
+# Les deux variantes de torch ne peuvent pas cohabiter
+conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+
 [tool.uv.sources]
-torch = { index = "pytorch-cu128" }
-torchaudio = { index = "pytorch-cu128" }
-torchvision = { index = "pytorch-cu128" }
+torch = [{ index = "pytorch-cu128", extra = "gpu" }, { index = "pytorch-cpu", extra = "cpu" }]
+torchaudio = [{ index = "pytorch-cu128", extra = "gpu" }, { index = "pytorch-cpu", extra = "cpu" }]
+torchvision = [{ index = "pytorch-cu128", extra = "gpu" }, { index = "pytorch-cpu", extra = "cpu" }]
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.pytest.ini_options]
