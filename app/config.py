@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     api_token: str = ""
     callback_token: str = ""
     max_upload_mb: int = 4096
+    # Nom proposé dans l'interface pour nommer un intervenant (le propriétaire de l'instance)
+    owner_name: str = ""
 
     # Transcription
     hf_token: str = ""

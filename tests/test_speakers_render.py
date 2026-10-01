@@ -154,6 +154,23 @@ def test_speakers_api_flow(client, audio_file):
     assert data["speakers"] == [{"id": "S1", "name": "Alice"}, {"id": "S2", "name": "Alice"}]
 
 
+def test_timeline(client, audio_file):
+    from app.config import get_settings
+
+    job = wait_for(client, upload(client, audio_file)["id"])
+    data = client.get(f"/api/jobs/{job['id']}/timeline", params={"bins": 50}).json()
+    assert data["duration"] == job["duration"]
+    assert {seg["speaker"] for seg in data["segments"]} == {"S1", "S2"}
+    assert all(seg["start"] < seg["end"] for seg in data["segments"])
+    assert all(a["end"] <= b["start"] for a, b in zip(data["segments"], data["segments"][1:]))
+    assert len(data["peaks"]) == 50 and max(data["peaks"]) == 1.0 and min(data["peaks"]) >= 0
+    cache = get_settings().job_dir(job["id"]) / "waveform.json"
+    assert cache.exists()
+    # Autre résolution : le cache est recalculé
+    assert len(client.get(f"/api/jobs/{job['id']}/timeline").json()["peaks"]) == 240
+    assert client.get(f"/api/jobs/{job['id']}/timeline", params={"bins": 5}).status_code == 422
+
+
 def test_rediarize(client, audio_file):
     job_id = wait_for(client, upload(client, audio_file)["id"])["id"]
     client.put(f"/api/jobs/{job_id}/speakers", json={"S1": "Alice"})

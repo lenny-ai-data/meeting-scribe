@@ -24,6 +24,10 @@ class SummaryRequest(BaseModel):
     temperature: float | None = Field(None, ge=0, le=2)
 
 
+class SummaryUpdate(BaseModel):
+    content: str = Field(..., description="Nouveau texte Markdown du compte rendu (sans en-tête YAML)")
+
+
 def summary_out(summary: dict) -> dict:
     base = f"/api/summaries/{summary['id']}"
     return {**summary, "think": bool(summary["think"]),
@@ -87,6 +91,15 @@ def summary_md(summary_id: str, download: bool = Query(False)):
 @router.get("/summaries/{summary_id}", summary="Détail d'un compte rendu")
 def get_summary(summary_id: str):
     return summary_out(summary_or_404(summary_id))
+
+
+@router.patch("/summaries/{summary_id}", summary="Modifier le texte d'un compte rendu terminé")
+def update_summary(summary_id: str, body: SummaryUpdate):
+    summary = summary_or_404(summary_id)
+    if summary["status"] != "completed":
+        raise HTTPException(409, f"Compte rendu non terminé (statut : {summary['status']})")
+    db.update_summary(summary_id, content=body.content)
+    return summary_out(db.get_summary(summary_id))
 
 
 @router.post("/summaries/{summary_id}/cancel", summary="Annuler un compte rendu en attente ou en cours")
