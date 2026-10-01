@@ -77,7 +77,7 @@ Un seul conteneur suffit. Ollama, l'API distante et n8n sont facultatifs.
 | | Minimum | Remarque |
 |---|---|---|
 | Système | Linux x86_64 | Développé et testé sous Ubuntu 24.04 |
-| GPU | NVIDIA, 12 Go de VRAM | Pic mesuré d'environ 12 Go en `large-v3`, pendant la diarisation. Testé sur une RTX 3090 (24 Go). Le mode CPU existe mais est très lent |
+| GPU | NVIDIA, 12 Go de VRAM en `large-v3`, 8 Go en `large-v3-turbo` | Pics mesurés : environ 10 Go en `large-v3`, 4,5 Go en `large-v3-turbo`. Testé sur une RTX 3090 (24 Go). Sans GPU, voir l'image CPU |
 | Pilote NVIDIA | 570 ou plus récent | L'image embarque CUDA 12.8 via les roues de PyTorch : rien à installer côté CUDA |
 | Docker | Docker Engine et Compose v2 | Avec le [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) |
 | Disque | environ 20 Go | Image : environ 13,5 Go. Modèles : environ 5 Go, plus les fichiers des réunions |
@@ -131,11 +131,12 @@ Toutes les variables sont dans [.env.example](.env.example), commentées. Après
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `HF_TOKEN` | — | **Obligatoire.** Jeton Hugging Face pour la diarisation |
+| `HF_TOKEN` | — | Jeton Hugging Face. Inutile si le modèle de diarisation est embarqué dans l'image (`DIARIZATION_MODEL_DIR`) |
 | `DEFAULT_MODEL` | `large-v3` | `large-v3` (plus précis) ou `large-v3-turbo` (plus rapide, moins de VRAM) |
 | `DEFAULT_LANGUAGE` | `fr` | `fr` ou `en` |
 | `DEFAULT_DEVICE` | `cuda` | `cuda` ou `cpu` |
-| `MIN_FREE_VRAM_GB` | `10` | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA |
+| `MIN_FREE_VRAM_GB` | selon le modèle | En dessous, le job échoue avec un message clair plutôt qu'avec une erreur CUDA. Par défaut : 10 Go en `large-v3`, 6 Go en `large-v3-turbo` |
+| `DIARIZATION_MODEL_DIR` | `/opt/models/pyannote/speaker-diarization-community-1` | Copie locale du modèle pyannote ; si elle existe, ni jeton ni réseau ne sont nécessaires |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama de l'hôte |
 | `OLLAMA_MODEL` | `qwen3.8:27b` | Modèle des comptes rendus |
 | `OLLAMA_MAX_CTX` | `65536` | Plafond du contexte ; le contexte réel est ajusté à la longueur du transcript |
@@ -291,7 +292,7 @@ Les frontières des tours sont recalées sur les fins de phrase, et la ponctuati
 - **Mise à jour** : `git pull && docker compose up -d --build`.
 - **Journaux** : `docker compose logs -f meeting-scribe`, et `data/jobs/<id>/pipeline.log` pour un job précis.
 - **Performances** mesurées sur une RTX 3090, modèles déjà téléchargés : environ 40 s en `large-v3-turbo` et 60 s en `large-v3` pour une interview de 8 min.
-- **VRAM** : le pic, environ 12 Go, est atteint pendant la diarisation. Toute la mémoire est rendue à la fin du job, car chaque traitement tourne dans un sous-processus.
+- **VRAM** : le pic est atteint pendant la transcription, environ 10 Go en `large-v3` et 4,5 Go en `large-v3-turbo` (`BATCH_SIZE=16`). La diarisation n'a besoin que d'environ 1,6 Go, même si elle occupe davantage quand la carte est libre. Toute la mémoire est rendue à la fin du job, car chaque traitement tourne dans un sous-processus.
 - **Redémarrage** : une tâche interrompue est relancée une fois, puis marquée en échec.
 
 ## Dépannage

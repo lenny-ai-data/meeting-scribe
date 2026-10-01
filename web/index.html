@@ -133,7 +133,7 @@
             </div>
             <div class="grow">
               <label for="f-vocab">Vocabulaire (noms propres, sigles, jargon)</label>
-              <textarea id="f-vocab" rows="3" placeholder="Ex. Acme, Dupont, CRM, n8n" x-model="form.vocabulary"></textarea>
+              <textarea id="f-vocab" rows="3" placeholder="Ex. noms de personnes, d’entreprises ou de produits, sigles" x-model="form.vocabulary"></textarea>
             </div>
           </div>
           <div class="stack">
@@ -153,9 +153,11 @@
             <div>
               <label for="f-device">Calcul</label>
               <select id="f-device" x-model="form.device">
-                <option value="cuda">GPU</option>
-                <option value="cpu">CPU (lent)</option>
+                <template x-for="d in options?.devices || []" :key="d">
+                  <option :value="d" x-text="d === 'cuda' ? 'GPU' : 'CPU'" :selected="d === form.device"></option>
+                </template>
               </select>
+              <div class="hint" x-show="form.device === 'cpu' && form.model === 'large-v3'">Sur CPU, large-v3-turbo est nettement plus rapide.</div>
             </div>
             <div>
               <label for="f-speakers">Nombre d’intervenants (maximum)</label>

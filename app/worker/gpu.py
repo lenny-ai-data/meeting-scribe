@@ -50,6 +50,11 @@ def check_free_vram(min_free_gb: float) -> float:
         raise GpuBusyError("Aucun GPU CUDA visible dans le conteneur (utilisez device=cpu, ou vérifiez le runtime NVIDIA).")
     free, total = torch.cuda.mem_get_info()
     log.info("VRAM libre : %.1f / %.1f Go", free / GiB, total / GiB)
+    if total / GiB < min_free_gb:
+        raise GpuBusyError(
+            f"Carte de {total / GiB:.1f} Go : trop petite pour ce modèle ({min_free_gb:g} Go de VRAM libre requis). "
+            "Choisissez large-v3-turbo, le CPU, ou réduisez BATCH_SIZE et MIN_FREE_VRAM_GB."
+        )
     if free / GiB < min_free_gb:
         raise GpuBusyError(
             f"VRAM libre insuffisante : {free / GiB:.1f} Go sur {total / GiB:.1f} Go (minimum {min_free_gb:g} Go). "

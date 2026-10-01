@@ -17,7 +17,7 @@ Progress = Callable[[float], None]  # pourcentage 0-100
 
 
 class Engine(Protocol):
-    def prepare_gpu(self, check_vram: bool) -> None: ...
+    def prepare_gpu(self, check_vram: bool, model: str) -> None: ...
     def load_audio(self, wav: Path) -> np.ndarray: ...
     def transcribe(self, audio: np.ndarray, model: str, language: str, vocabulary: str | None,
                    on_progress: Progress) -> dict: ...
@@ -44,7 +44,7 @@ class FakeEngine:
     def __init__(self, delay: float = 0.0):
         self.delay = delay  # secondes par segment, pour tester l'annulation
 
-    def prepare_gpu(self, check_vram: bool) -> None:
+    def prepare_gpu(self, check_vram: bool, model: str) -> None:
         pass
 
     def load_audio(self, wav: Path) -> np.ndarray:

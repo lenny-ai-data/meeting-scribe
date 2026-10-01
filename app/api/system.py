@@ -7,7 +7,7 @@ import httpx
 from fastapi import APIRouter, Depends
 
 from .. import __version__, db
-from ..config import DEVICES, LANGUAGES, WHISPER_MODELS, get_settings
+from ..config import LANGUAGES, WHISPER_MODELS, available_devices, get_settings
 from ..worker.queue import Worker
 from .common import get_worker
 
@@ -61,8 +61,8 @@ async def _ollama() -> dict:
 def _status(settings, gpu: list[dict] | None, ollama: dict, running: bool) -> dict:
     """Synthèse pour le voyant de l'interface : error (transcription impossible), busy ou ready."""
     problems, warnings = [], []
-    if not settings.hf_token:
-        problems.append("HF_TOKEN manquant : la diarisation est impossible")
+    if not settings.diarization_ready:
+        problems.append("HF_TOKEN manquant et modèle de diarisation non embarqué : la diarisation est impossible")
     if not gpu and settings.default_device == "cuda" and not settings.fake_pipeline:
         problems.append("GPU introuvable (nvidia-smi ne répond pas)")
     if not ollama["reachable"]:
@@ -84,6 +84,7 @@ async def system(worker: Annotated[Worker, Depends(get_worker)]):
         "llm_api": {"configured": settings.llm_api_configured, "base_url": settings.llm_api_base_url or None,
                     "model": settings.llm_api_model or None},
         "hf_token": bool(settings.hf_token),
+        "diarization": {"model": settings.diarization_model, "bundled": settings.diarization_bundled},
         "auth": bool(settings.api_token),
         "fake_pipeline": settings.fake_pipeline,
         "queue": {
@@ -93,7 +94,7 @@ async def system(worker: Annotated[Worker, Depends(get_worker)]):
         },
         "versions": {name: _package_version(name) for name in ("yt-dlp", "whisperx", "torch", "pyannote.audio")},
         "options": {
-            "models": WHISPER_MODELS, "languages": LANGUAGES, "devices": DEVICES,
+            "models": WHISPER_MODELS, "languages": LANGUAGES, "devices": available_devices(settings),
             "default_model": settings.default_model, "default_language": settings.default_language,
             "default_device": settings.default_device, "owner_name": settings.owner_name or None,
         },

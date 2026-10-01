@@ -22,21 +22,24 @@ class WhisperXEngine:
         self.device = device
         self.compute_type = "float16" if device == "cuda" else "int8"
 
-    def _free(self) -> None:
+    def _free(self, step: str) -> None:
         gc.collect()
         if self.device == "cuda":
             import torch
 
+            # Pic réellement alloué par torch : sert à régler MIN_VRAM_GB (hors mémoire de ctranslate2)
+            log.info("%s : pic de VRAM allouée par torch %.1f Go", step, torch.cuda.max_memory_allocated() / 2**30)
+            torch.cuda.reset_peak_memory_stats()
             torch.cuda.empty_cache()
 
-    def prepare_gpu(self, check_vram: bool) -> None:
+    def prepare_gpu(self, check_vram: bool, model: str) -> None:
         if self.device != "cuda":
             return
         unloaded = gpu.unload_ollama(self.settings.ollama_url, self.settings.ollama_unload_timeout)
         if unloaded:
             log.info("Modèles Ollama déchargés : %s", ", ".join(unloaded))
         if check_vram:
-            gpu.check_free_vram(self.settings.min_free_vram_gb)
+            gpu.check_free_vram(self.settings.min_vram_gb(model))
 
     def load_audio(self, wav: Path):
         import whisperx
@@ -58,7 +61,7 @@ class WhisperXEngine:
             kwargs["interleaved_context"] = True
         result = pipeline.transcribe(audio, **kwargs)
         del pipeline
-        self._free()
+        self._free("Transcription")
         return result
 
     def align(self, result, audio, language, on_progress):
@@ -68,17 +71,22 @@ class WhisperXEngine:
         aligned = whisperx.align(result["segments"], model, metadata, audio, self.device,
                                  return_char_alignments=False, progress_callback=on_progress)
         del model
-        self._free()
+        self._free("Alignement")
         return {"segments": aligned["segments"]}
 
     def diarize(self, audio, num_speakers, min_speakers, max_speakers, on_progress):
-        if not self.settings.hf_token:
-            raise ScribeError("HF_TOKEN manquant : la diarisation pyannote exige un jeton Hugging Face (voir README).")
+        settings = self.settings
+        if not settings.diarization_ready:
+            raise ScribeError(
+                f"HF_TOKEN manquant : le modèle {settings.diarization_model} n'est pas embarqué dans l'image "
+                "et son téléchargement exige un jeton Hugging Face (voir README)."
+            )
         from whisperx.diarize import DiarizationPipeline
 
+        source = settings.diarization_source
+        log.info("Modèle de diarisation : %s", source)
         try:
-            pipeline = DiarizationPipeline(model_name=self.settings.diarization_model,
-                                           token=self.settings.hf_token, device=self.device)
+            pipeline = DiarizationPipeline(model_name=source, token=settings.hf_token or None, device=self.device)
         except Exception as exc:
             if "403" in str(exc) or "401" in str(exc) or "gated" in str(exc).lower():
                 raise ScribeError(
@@ -89,7 +97,7 @@ class WhisperXEngine:
         df = pipeline(audio, num_speakers=num_speakers, min_speakers=min_speakers, max_speakers=max_speakers,
                       progress_callback=on_progress)
         del pipeline
-        self._free()
+        self._free("Diarisation")
         return [{"start": float(r.start), "end": float(r.end), "speaker": str(r.speaker)}
                 for r in df.itertuples()]
 

@@ -115,6 +115,61 @@ def test_system_ready_with_token(settings_env):
     assert info["options"]["owner_name"] == "Alice Martin"
 
 
+def test_system_ready_with_bundled_diarization(settings_env, tmp_path):
+    """Modèle pyannote embarqué dans l'image : aucun jeton Hugging Face nécessaire."""
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    model_dir = tmp_path / "pyannote"
+    model_dir.mkdir()
+    (model_dir / "config.yaml").write_text("pipeline: {}\n")
+    settings = get_settings()
+    assert settings.diarization_source == str(model_dir)
+    with TestClient(create_app()) as client:
+        info = client.get("/api/system").json()
+    assert info["status"]["state"] == "ready"
+    assert info["diarization"] == {"model": "pyannote/speaker-diarization-community-1", "bundled": True}
+
+
+def test_diarization_source_without_bundle(settings_env):
+    settings = get_settings()
+    assert settings.diarization_source == "pyannote/speaker-diarization-community-1"
+    assert not settings.diarization_ready
+    settings_env.setenv("HF_TOKEN", "hf_test")
+    get_settings.cache_clear()
+    assert get_settings().diarization_ready
+
+
+def test_min_vram_by_model(settings_env):
+    settings = get_settings()
+    assert settings.min_vram_gb("large-v3") == 10
+    assert settings.min_vram_gb("large-v3-turbo") == 6
+    assert settings.min_vram_gb("modèle inconnu") == 10
+    # Seuil imposé par l'environnement ; une variable vide vaut « selon le modèle »
+    settings_env.setenv("MIN_FREE_VRAM_GB", "4")
+    get_settings.cache_clear()
+    assert get_settings().min_vram_gb("large-v3") == 4
+    settings_env.setenv("MIN_FREE_VRAM_GB", "")
+    get_settings.cache_clear()
+    assert get_settings().min_vram_gb("large-v3") == 10
+
+
+def test_cpu_only_host(client, audio_file, monkeypatch):
+    """Sans GPU, seul le CPU est proposé et une demande en cuda est refusée."""
+    from app.api import jobs, system
+
+    monkeypatch.setattr(jobs, "available_devices", lambda s: ("cpu",))
+    monkeypatch.setattr(system, "available_devices", lambda s: ("cpu",))
+    assert client.get("/api/system").json()["options"]["devices"] == ["cpu"]
+    with open(audio_file, "rb") as fh:
+        resp = client.post("/api/jobs", files={"file": (audio_file.name, fh, "audio/mp4")}, data={"device": "cuda"})
+    assert resp.status_code == 422
+    assert "cpu" in resp.json()["detail"]
+    job = upload(client, audio_file, device="cpu")
+    assert job["device"] == "cpu"
+
+
 def test_api_token(settings_env, audio_file):
     from fastapi.testclient import TestClient
 

@@ -14,8 +14,9 @@ def settings_env(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("FAKE_PIPELINE", "true")
     monkeypatch.setenv("OLLAMA_URL", "http://127.0.0.1:9")  # injoignable
+    monkeypatch.setenv("DIARIZATION_MODEL_DIR", str(tmp_path / "pyannote"))  # pas de modèle embarqué
     for name in ("API_TOKEN", "CALLBACK_TOKEN", "PUBLIC_BASE_URL", "LLM_API_BASE_URL", "LLM_API_KEY",
-                 "LLM_API_MODEL", "HF_TOKEN"):
+                 "LLM_API_MODEL", "HF_TOKEN", "MIN_FREE_VRAM_GB"):
         monkeypatch.delenv(name, raising=False)
     get_settings.cache_clear()
     yield monkeypatch
